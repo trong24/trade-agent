@@ -1,0 +1,20 @@
+[project]
+name = "trade-agent"
+version = "0.1.0"
+description = "Minimal modular trade agent (paper/backtest)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+trade-agent = "trade_agent.cli:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

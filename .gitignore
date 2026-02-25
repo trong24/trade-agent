@@ -1,0 +1,147 @@
+# ============================================================
+# Python
+# ============================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ============================================================
+# Testing
+# ============================================================
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+htmlcov/
+
+# ============================================================
+# Type checkers & linters
+# ============================================================
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+.ruff_cache/
+
+# ============================================================
+# Jupyter Notebooks
+# ============================================================
+.ipynb_checkpoints
+*.ipynb
+
+# ============================================================
+# Logs & runtime files
+# ============================================================
+*.log
+logs/
+*.pid
+*.seed
+*.pid.lock
+
+# ============================================================
+# Data files (keep sample data, ignore generated/downloaded)
+# ============================================================
+data/*.csv
+data/*.parquet
+data/*.json
+data/*.feather
+data/*.h5
+data/*.hdf5
+data/*.db
+data/*.sqlite
+# Allow tracked sample/fixture data
+!data/sample_*.csv
+!data/fixtures/
+
+# ============================================================
+# Model artifacts & checkpoints
+# ============================================================
+models/
+checkpoints/
+*.pkl
+*.pickle
+*.joblib
+*.pt
+*.pth
+*.onnx
+
+# ============================================================
+# Environment & secrets
+# ============================================================
+.env
+.env.*
+!.env.example
+secrets/
+*.key
+*.pem
+config/local_*.yaml
+config/local_*.toml
+
+# ============================================================
+# IDE & editor
+# ============================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.spyderproject/
+.spyproject/
+.ropeproject/
+
+# ============================================================
+# macOS
+# ============================================================
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# ============================================================
+# Misc
+# ============================================================
+*.bak
+*.tmp
+*.orig
+Thumbs.db
