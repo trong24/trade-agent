@@ -65,12 +65,17 @@ def load_candles_from_csv(path: str | Path) -> list[Candle]:
         reader = csv.DictReader(f)
         required = {"timestamp", "open", "high", "low", "close", "volume"}
         headers = {h.strip().lower() for h in (reader.fieldnames or [])}
-        if not required.issubset(headers):
+        missing = required - headers
+        if missing:
             raise ValueError(
-                "CSV must have columns: timestamp,open,high,low,close,volume"
+                f"CSV missing required columns: {', '.join(sorted(missing))}. "
+                f"Expected: timestamp,open,high,low,close,volume"
             )
 
         for line_num, row in enumerate(reader, start=2):  # start=2: header is line 1
+            # Normalize keys: strip whitespace + lowercase so CSV headers like
+            # "Open", "TIMESTAMP", " close " all work correctly.
+            row = {k.strip().lower(): v.strip() for k, v in row.items()}
             _validate_candle_values(row, line_num)
             candles.append(
                 Candle(
