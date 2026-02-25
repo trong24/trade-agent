@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import csv
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from ..types import Candle
@@ -14,14 +14,14 @@ def _parse_ts(raw: str) -> datetime:
         # heuristic: milliseconds vs seconds
         if ts > 10_000_000_000:
             ts = ts / 1000
-        return datetime.fromtimestamp(ts, tz=timezone.utc)
+        return datetime.fromtimestamp(ts, tz=UTC)
 
     # ISO 8601 support, including trailing Z
     if raw.endswith("Z"):
         raw = raw.replace("Z", "+00:00")
     dt = datetime.fromisoformat(raw)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt
 
 

@@ -4,6 +4,7 @@ Usage:
     validate-data --symbol BTCUSDT --interval 1m
     python -m trade_agent.scripts.validate_data --symbol BTCUSDT
 """
+
 from __future__ import annotations
 
 import argparse
@@ -20,13 +21,15 @@ console = Console()
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Validate klines data quality")
-    p.add_argument("--symbol",        default="BTCUSDT", help="Symbol, e.g. BTCUSDT")
-    p.add_argument("--interval",      default="1m",       help="Interval, e.g. 1m")
-    p.add_argument("--start",         default="2000-01-01")
-    p.add_argument("--end",           default=None)
-    p.add_argument("--data-dir",      default="data/raw")
-    p.add_argument("--min-score",     type=float, default=0.95, help="Fail if quality_score below this")
-    p.add_argument("--gap-threshold", type=int,   default=5,    help="Report gaps with > N missing candles")
+    p.add_argument("--symbol", default="BTCUSDT", help="Symbol, e.g. BTCUSDT")
+    p.add_argument("--interval", default="1m", help="Interval, e.g. 1m")
+    p.add_argument("--start", default="2000-01-01")
+    p.add_argument("--end", default=None)
+    p.add_argument("--data-dir", default="data/raw")
+    p.add_argument("--min-score", type=float, default=0.95, help="Fail if quality_score below this")
+    p.add_argument(
+        "--gap-threshold", type=int, default=5, help="Report gaps with > N missing candles"
+    )
     return p
 
 
@@ -45,15 +48,19 @@ def main() -> None:
 
     # ── Summary table ─────────────────────────────────────────────────────────
     tbl = Table(title=f"Data Quality — {args.symbol} {args.interval}", show_header=False)
-    tbl.add_column("Key",   style="bold cyan", width=18)
+    tbl.add_column("Key", style="bold cyan", width=18)
     tbl.add_column("Value", style="white")
 
-    tbl.add_row("Period",    f"{report.start.date()} → {report.end.date()}")
-    tbl.add_row("Candles",   f"{report.total_candles:,} / {report.expected_candles:,} expected")
-    tbl.add_row("Gaps",      f"{len(report.missing_gaps)} ({sum(g.missing_candles for g in report.missing_gaps):,} missing)")
-    tbl.add_row("Duplicates",str(report.duplicate_count))
+    tbl.add_row("Period", f"{report.start.date()} → {report.end.date()}")
+    tbl.add_row("Candles", f"{report.total_candles:,} / {report.expected_candles:,} expected")
+    tbl.add_row(
+        "Gaps",
+        f"{len(report.missing_gaps)} "
+        f"({sum(g.missing_candles for g in report.missing_gaps):,} missing)",
+    )
+    tbl.add_row("Duplicates", str(report.duplicate_count))
     score_color = "green" if report.is_ok(args.min_score) else "red"
-    tbl.add_row("Score",     f"[{score_color}]{report.quality_score:.4f}[/{score_color}]")
+    tbl.add_row("Score", f"[{score_color}]{report.quality_score:.4f}[/{score_color}]")
 
     if report.schema_errors:
         tbl.add_row("Schema errors", "; ".join(report.schema_errors))
@@ -63,8 +70,8 @@ def main() -> None:
     # ── Gaps detail ───────────────────────────────────────────────────────────
     if report.missing_gaps:
         gap_tbl = Table(title="Gaps (top 20)", show_header=True)
-        gap_tbl.add_column("Gap start",       style="yellow")
-        gap_tbl.add_column("Gap end",         style="yellow")
+        gap_tbl.add_column("Gap start", style="yellow")
+        gap_tbl.add_column("Gap end", style="yellow")
         gap_tbl.add_column("Missing candles", style="red")
         for g in report.missing_gaps[:20]:
             gap_tbl.add_row(str(g.gap_start), str(g.gap_end), str(g.missing_candles))

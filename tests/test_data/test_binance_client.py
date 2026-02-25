@@ -1,9 +1,9 @@
 """Unit tests for BinanceClient: pagination, retry logic, parse."""
+
 from __future__ import annotations
 
+from datetime import UTC
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from trade_agent.data.binance_client import BinanceClient, _parse_kline, _ts_ms
 
@@ -11,20 +11,23 @@ from trade_agent.data.binance_client import BinanceClient, _parse_kline, _ts_ms
 def _make_raw_kline(open_time_ms: int = 1_700_000_000_000) -> list:
     """Return a minimal raw kline list as Binance returns it."""
     return [
-        open_time_ms,          # 0 open_time
-        "30000.5",             # 1 open
-        "30100.0",             # 2 high
-        "29900.0",             # 3 low
-        "30050.0",             # 4 close
-        "10.5",                # 5 volume
+        open_time_ms,  # 0 open_time
+        "30000.5",  # 1 open
+        "30100.0",  # 2 high
+        "29900.0",  # 3 low
+        "30050.0",  # 4 close
+        "10.5",  # 5 volume
         open_time_ms + 59999,  # 6 close_time
-        "315525.0",            # 7 quote_volume
-        "123",                 # 8 trades
-        "5.2", "156000.0", "0" # 9-11 (ignored)
+        "315525.0",  # 7 quote_volume
+        "123",  # 8 trades
+        "5.2",
+        "156000.0",
+        "0",  # 9-11 (ignored)
     ]
 
 
 # ── parse ─────────────────────────────────────────────────────────────────────
+
 
 def test_parse_kline_types():
     raw = _make_raw_kline()
@@ -37,13 +40,15 @@ def test_parse_kline_types():
 
 
 def test_ts_ms_round_trip():
-    from datetime import datetime, timezone
-    dt = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+    from datetime import datetime
+
+    dt = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
     ms = _ts_ms(dt)
     assert ms == int(dt.timestamp() * 1000)
 
 
 # ── get_klines ─────────────────────────────────────────────────────────────────
+
 
 def _mock_response(data: list, status: int = 200) -> MagicMock:
     resp = MagicMock()

@@ -3,12 +3,13 @@
 Handles klines fetching with pagination, retry, and rate-limit awareness.
 No API key required (public endpoints only).
 """
+
 from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timezone
-from typing import Iterator
+from collections.abc import Iterator
+from datetime import UTC, datetime
 
 import requests
 
@@ -16,27 +17,34 @@ log = logging.getLogger(__name__)
 
 _BASE = "https://fapi.binance.com"
 _KLINES_ENDPOINT = "/fapi/v1/klines"
-_MAX_LIMIT = 1500  # Binance max per request
+_MAX_LIMIT = 1500  # Binance max per request (weight scales with limit)
 _RETRY_DELAYS = [1, 3, 10]  # seconds between retries
+
+# Supported intervals for research (15m and above)
+SUPPORTED_INTERVALS = ["15m", "1h", "4h", "1d", "1w", "1M"]
 
 
 def _ts_ms(dt: datetime) -> int:
     """Convert UTC datetime → milliseconds epoch."""
-    return int(dt.replace(tzinfo=timezone.utc).timestamp() * 1000) if dt.tzinfo is None else int(dt.timestamp() * 1000)
+    return (
+        int(dt.replace(tzinfo=UTC).timestamp() * 1000)
+        if dt.tzinfo is None
+        else int(dt.timestamp() * 1000)
+    )
 
 
 def _parse_kline(raw: list) -> dict:
     """Convert Binance raw kline list to typed dict."""
     return {
-        "open_time":    raw[0],        # int ms
-        "open":         float(raw[1]),
-        "high":         float(raw[2]),
-        "low":          float(raw[3]),
-        "close":        float(raw[4]),
-        "volume":       float(raw[5]),
-        "close_time":   raw[6],        # int ms
+        "open_time": raw[0],  # int ms
+        "open": float(raw[1]),
+        "high": float(raw[2]),
+        "low": float(raw[3]),
+        "close": float(raw[4]),
+        "volume": float(raw[5]),
+        "close_time": raw[6],  # int ms
         "quote_volume": float(raw[7]),
-        "trades":       int(raw[8]),
+        "trades": int(raw[8]),
     }
 
 
@@ -62,10 +70,10 @@ class BinanceClient:
         Returns list of typed dicts. Raises on non-retriable HTTP errors.
         """
         params: dict = {
-            "symbol":    symbol.upper(),
-            "interval":  interval,
+            "symbol": symbol.upper(),
+            "interval": interval,
             "startTime": start_ms,
-            "limit":     min(limit, _MAX_LIMIT),
+            "limit": min(limit, _MAX_LIMIT),
         }
         if end_ms is not None:
             params["endTime"] = end_ms
@@ -112,9 +120,8 @@ class BinanceClient:
             batch = self.get_klines(symbol, interval, cursor, end_ms, limit)
             if not batch:
                 break
-            yield batch
             last_open = batch[-1]["open_time"]
-            if last_open <= cursor:
-                break  # no progress guard
-            # advance past the last candle
+            if last_open < cursor:
+                break  # no progress guard — stop before yielding stale data
+            yield batch
             cursor = last_open + 1

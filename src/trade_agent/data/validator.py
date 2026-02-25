@@ -1,27 +1,28 @@
 """Data quality validation: gap detection, schema check, coverage report."""
+
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 
 import pandas as pd
 
+from trade_agent.data.klines_store import INTERVAL_MS
+
 log = logging.getLogger(__name__)
 
-_INTERVAL_MS: dict[str, int] = {
-    "1m":  60_000,
-    "3m":  180_000,
-    "5m":  300_000,
-    "15m": 900_000,
-    "30m": 1_800_000,
-    "1h":  3_600_000,
-    "4h":  14_400_000,
-    "1d":  86_400_000,
+_REQUIRED_COLS = {
+    "open_time",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "close_time",
+    "quote_volume",
+    "trades",
 }
-
-_REQUIRED_COLS = {"open_time", "open", "high", "low", "close", "volume", "close_time", "quote_volume", "trades"}
 
 
 @dataclass
@@ -52,7 +53,8 @@ class ValidationReport:
             f"Symbol   : {self.symbol}  Interval: {self.interval}",
             f"Period   : {self.start.date()} → {self.end.date()}",
             f"Candles  : {self.total_candles:,} / {self.expected_candles:,} expected",
-            f"Gaps     : {len(self.missing_gaps)} ({sum(g.missing_candles for g in self.missing_gaps):,} missing candles)",
+            f"Gaps     : {len(self.missing_gaps)} "
+            f"({sum(g.missing_candles for g in self.missing_gaps):,} missing candles)",
             f"Dupes    : {self.duplicate_count}",
             f"Score    : {self.quality_score:.3f}  {'✅ OK' if self.is_ok() else '⚠️ ISSUES FOUND'}",
         ]
@@ -81,9 +83,13 @@ def validate(
     """
     if df.empty:
         return ValidationReport(
-            symbol=symbol, interval=interval,
-            start=datetime.now(timezone.utc), end=datetime.now(timezone.utc),
-            total_candles=0, expected_candles=0, duplicate_count=0,
+            symbol=symbol,
+            interval=interval,
+            start=datetime.now(UTC),
+            end=datetime.now(UTC),
+            total_candles=0,
+            expected_candles=0,
+            duplicate_count=0,
             quality_score=0.0,
         )
 
@@ -92,13 +98,13 @@ def validate(
     if missing_cols:
         schema_errors.append(f"Missing columns: {sorted(missing_cols)}")
 
-    interval_ms = _INTERVAL_MS.get(interval)
+    interval_ms = INTERVAL_MS.get(interval)
     if interval_ms is None:
         schema_errors.append(f"Unknown interval: {interval}")
 
     start_ts = df["open_time"].min()
-    end_ts   = df["open_time"].max()
-    total    = len(df)
+    end_ts = df["open_time"].max()
+    total = len(df)
 
     # Duplicates
     dup_count = int(df.duplicated(subset=["open_time"]).sum())
@@ -108,7 +114,7 @@ def validate(
     gaps: list[GapInfo] = []
 
     if interval_ms:
-        span_ms  = (end_ts - start_ts).total_seconds() * 1000
+        span_ms = (end_ts - start_ts).total_seconds() * 1000
         expected = int(span_ms / interval_ms) + 1
 
         # Gap detection: find consecutive pairs with jump > 1 interval
@@ -119,7 +125,7 @@ def validate(
             missing = int(diff / interval_ms) - 1
             if missing > gap_threshold:
                 gap_start = sorted_times.iloc[idx - 1].to_pydatetime()
-                gap_end   = sorted_times.iloc[idx].to_pydatetime()
+                gap_end = sorted_times.iloc[idx].to_pydatetime()
                 gaps.append(GapInfo(gap_start, gap_end, missing))
 
     # Quality score: fraction of expected candles present (ignoring duplicates)
