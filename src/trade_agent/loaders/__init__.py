@@ -1,3 +1,3 @@
-from .csv import load_candles_from_csv
+from .parquet import load_candles_from_store
 
-__all__ = ["load_candles_from_csv"]
+__all__ = ["load_candles_from_store"]

@@ -1,6 +1,6 @@
 from .brokers.paper import PaperBroker
 from .engine.backtest import BacktestEngine, BacktestResult
-from .loaders.csv import load_candles_from_csv
+from .loaders.parquet import load_candles_from_store
 from .risks.fixed_fraction import FixedFractionRisk
 from .strategies.sma import SMACrossStrategy
 from .types import BrokerLike, Candle, OrderSide, RiskLike, Signal, StrategyLike, Trade
@@ -12,7 +12,7 @@ __all__ = [
     # Broker
     "PaperBroker",
     # Data
-    "load_candles_from_csv",
+    "load_candles_from_store",
     # Risk
     "FixedFractionRisk",
     # Strategy
