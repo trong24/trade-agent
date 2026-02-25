@@ -16,12 +16,12 @@ def classify_trades(trades: list[Trade]) -> tuple[int, int]:
     wins = 0
     losses = 0
 
-    buy_notional = 0.0   # pure notional (no fees) of accumulated buys
+    buy_notional = 0.0  # pure notional (no fees) of accumulated buys
     buy_qty = 0.0
 
     for t in trades:
         if t.side == OrderSide.BUY:
-            buy_notional += t.notional   # do NOT add fee here
+            buy_notional += t.notional  # do NOT add fee here
             buy_qty += t.qty
             continue
 

@@ -16,7 +16,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--initial-cash", type=float, default=10_000.0)
     parser.add_argument("--short", type=int, default=20, help="Short SMA window")
     parser.add_argument("--long", type=int, default=50, help="Long SMA window")
-    parser.add_argument("--risk", type=float, default=0.2, help="Max equity fraction per entry")
+    parser.add_argument(
+        "--risk", type=float, default=0.2, help="Max equity fraction per entry"
+    )
     parser.add_argument("--fee-bps", type=float, default=6.0, help="Fee in bps")
     return parser
 

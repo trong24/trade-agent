@@ -42,6 +42,7 @@ class Trade:
 
 # ── Structural Protocols (avoid concrete coupling between modules) ──────────
 
+
 class StrategyLike(Protocol):
     """Anything that can emit a Signal given a list of candles."""
 

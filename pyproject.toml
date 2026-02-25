@@ -1,13 +1,30 @@
 [project]
 name = "trade-agent"
-version = "0.1.0"
-description = "Minimal modular trade agent (paper/backtest)"
+version = "0.2.0"
+description = "Modular research engine — BTC/USDT Futures (paper/backtest)"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "pandas>=2.2",
+    "pyarrow>=15",
+    "requests>=2.31",
+    "python-dateutil>=2.9",
+    "pydantic>=2.6",
+    "rich>=13",
+]
+
+[project.optional-dependencies]
+indicators = ["pandas-ta>=0.3"]
+dev = [
+    "pytest>=8",
+    "pytest-cov",
+    "ruff>=0.4",
+]
 
 [project.scripts]
-trade-agent = "trade_agent.cli:main"
+trade-agent   = "trade_agent.cli:main"
+sync-klines   = "trade_agent.scripts.sync_klines:main"
+validate-data = "trade_agent.scripts.validate_data:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
@@ -18,3 +35,15 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"

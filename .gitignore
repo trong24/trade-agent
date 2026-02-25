@@ -151,4 +151,14 @@ Thumbs.db
 # ============================================================
 skills/trade-agent/reports/latest.md
 skills/trade-agent/reports/backtest-*.md
+
+# ============================================================
+# Data & Reports (generated, never commit raw market data)
+# ============================================================
+data/raw/
+data/cache/
+reports/
+notebooks/.ipynb_checkpoints/
+*.parquet
+*.feather
 skills/trade-agent/reports/latest.md
