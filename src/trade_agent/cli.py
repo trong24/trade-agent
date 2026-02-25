@@ -3,11 +3,11 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from .backtest import BacktestEngine
-from .broker import PaperBroker
-from .data import load_candles_from_csv
-from .risk import FixedFractionRisk
-from .strategy import SMACrossStrategy
+from .engine.backtest import BacktestEngine
+from .brokers.paper import PaperBroker
+from .loaders.csv import load_candles_from_csv
+from .risks.fixed_fraction import FixedFractionRisk
+from .strategies.sma import SMACrossStrategy
 
 
 def build_parser() -> argparse.ArgumentParser:
