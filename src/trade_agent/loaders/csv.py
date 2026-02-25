@@ -29,7 +29,7 @@ def _validate_candle_values(row: dict[str, str], line: int) -> None:
     """Raise ValueError with a descriptive message if OHLCV data is invalid."""
     o = float(row["open"])
     h = float(row["high"])
-    l = float(row["low"])
+    low = float(row["low"])
     c = float(row["close"])
     v = float(row["volume"])
 
@@ -38,18 +38,18 @@ def _validate_candle_values(row: dict[str, str], line: int) -> None:
         errors.append(f"open={o} must be > 0")
     if h <= 0:
         errors.append(f"high={h} must be > 0")
-    if l <= 0:
-        errors.append(f"low={l} must be > 0")
+    if low <= 0:
+        errors.append(f"low={low} must be > 0")
     if c <= 0:
         errors.append(f"close={c} must be > 0")
     if v < 0:
         errors.append(f"volume={v} must be >= 0")
-    if h < l:
-        errors.append(f"high={h} < low={l}")
+    if h < low:
+        errors.append(f"high={h} < low={low}")
     if h < o or h < c:
         errors.append(f"high={h} must be >= open and close")
-    if l > o or l > c:
-        errors.append(f"low={l} must be <= open and close")
+    if low > o or low > c:
+        errors.append(f"low={low} must be <= open and close")
 
     if errors:
         raise ValueError(f"Invalid OHLCV at row {line}: {'; '.join(errors)}")

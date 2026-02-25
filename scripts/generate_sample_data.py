@@ -22,7 +22,7 @@ def generate(path: Path, rows: int = 400, start_price: float = 30_000.0) -> None
             o = price
             c = max(100.0, o * (1 + drift))
             h = max(o, c) * (1 + vol)
-            l = min(o, c) * (1 - vol)
+            low = min(o, c) * (1 - vol)
             v = random.uniform(10, 100)
 
             writer.writerow(
@@ -30,7 +30,7 @@ def generate(path: Path, rows: int = 400, start_price: float = 30_000.0) -> None
                     ts.isoformat().replace("+00:00", "Z"),
                     f"{o:.2f}",
                     f"{h:.2f}",
-                    f"{l:.2f}",
+                    f"{low:.2f}",
                     f"{c:.2f}",
                     f"{v:.4f}",
                 ]
