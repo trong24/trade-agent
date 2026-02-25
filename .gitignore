@@ -145,3 +145,10 @@ Icon
 *.tmp
 *.orig
 Thumbs.db
+
+# ============================================================
+# Skills — generated output (không commit, chỉ track template)
+# ============================================================
+skills/trade-agent/reports/latest.md
+skills/trade-agent/reports/backtest-*.md
+skills/trade-agent/reports/latest.md
