@@ -95,7 +95,7 @@ def main() -> None:
 
     # ── Generate signals ───────────────────────────────────────────────────────
     params = {"zone_mult": args.zone_mult}
-    signals = generate_signals(df, facts, params=params)
+    signals = generate_signals(df, facts, interval=args.interval, params=params)
     metrics = run_vectorized_backtest(df, signals, fee_bps=args.fee_bps)
 
     # ── Save run ───────────────────────────────────────────────────────────────

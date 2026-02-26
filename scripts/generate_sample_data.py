@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import csv
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 
 def generate(path: Path, rows: int = 400, start_price: float = 30_000.0) -> None:
     random.seed(42)
-    ts = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    ts = datetime(2025, 1, 1, tzinfo=UTC)
     price = start_price
 
     with path.open("w", newline="", encoding="utf-8") as f:
