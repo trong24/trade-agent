@@ -161,4 +161,6 @@ reports/
 notebooks/.ipynb_checkpoints/
 *.parquet
 *.feather
+*.duckdb
+*.duckdb.wal
 skills/trade-agent/reports/latest.md
