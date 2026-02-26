@@ -162,6 +162,13 @@ def build_plan(facts: dict, risk_params: dict | None = None) -> dict:
     if primary_bias == "neutral":
         no_trade.append("Bias chain neutral — no directional edge")
 
+    # ── Plan score (0..100) ────────────────────────────────────────────────
+    score = _compute_plan_score(
+        bias_chain, primary_bias, regime, entry_rules, targets,
+        atr_pct_4h, rp, no_trade,
+    )
+    no_trade_flag = score < 30
+
     # ── Assemble plan ──────────────────────────────────────────────────────
     return {
         "symbol":         facts.get("symbol", "BTCUSDT"),
@@ -184,4 +191,63 @@ def build_plan(facts: dict, risk_params: dict | None = None) -> dict:
             "time_stop_bars": rp["time_stop_bars"],
         },
         "no_trade":       no_trade,
+        "plan_score":     score,
+        "no_trade_flag":  no_trade_flag,
     }
+
+
+def _compute_plan_score(
+    bias_chain: dict,
+    primary_bias: str,
+    regime: str,
+    entry_rules: list,
+    targets: list,
+    atr_pct_4h: float,
+    rp: dict,
+    no_trade: list,
+) -> int:
+    """Score 0..100 based on evidence alignment.
+
+    Breakdown:
+      Bias alignment (0-30): all TFs agree = 30, partial = 15, neutral = 0
+      Zone setup    (0-25): entry rule exists with zone = 25
+      Targets R:R   (0-20): any TP with R:R >= min_rr = 20
+      Volatility    (0-15): ATR% in sweet spot (1-5%) = 15
+      No-trade      (-10 each): deductions
+    """
+    pts = 0
+
+    # Bias alignment: check confidence across chain
+    confidences = [v.get("confidence", "low") for v in bias_chain.values()]
+    high_count = confidences.count("high")
+    if primary_bias != "neutral":
+        if high_count >= 2:
+            pts += 30
+        elif high_count >= 1:
+            pts += 20
+        else:
+            pts += 10
+
+    # Zone setup
+    if entry_rules and entry_rules[0].get("zone"):
+        pts += 25
+    elif entry_rules and entry_rules[0].get("type") != "wait":
+        pts += 10
+
+    # Targets R:R
+    good_targets = [t for t in targets if t.get("rr", 0) >= rp.get("min_rr", 2.0)]
+    if good_targets:
+        pts += 20
+    elif targets:
+        pts += 10
+
+    # Volatility sweet spot
+    if 1.0 <= atr_pct_4h <= 5.0:
+        pts += 15
+    elif 0.5 <= atr_pct_4h <= 8.0:
+        pts += 8
+
+    # No-trade deductions
+    pts -= len(no_trade) * 10
+    return max(0, min(100, pts))
+

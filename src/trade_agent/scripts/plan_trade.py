@@ -90,8 +90,12 @@ def main() -> None:
     console.print(
         f"Price: [bold]{plan['current_price']:,.2f}[/]  "
         f"Regime: [bold]{plan['regime']}[/]  "
-        f"Bias: [bold]{plan['primary_bias']}[/]"
+        f"Bias: [bold]{plan['primary_bias']}[/]  "
+        f"Score: [bold]{plan.get('plan_score', '?')}[/]/100"
     )
+    if plan.get("no_trade_flag"):
+        console.print("  [bold red]⛔ NO TRADE — score too low, skip this setup[/]")
+
 
     # Scenarios
     tbl = Table(title="Scenarios", show_header=True)

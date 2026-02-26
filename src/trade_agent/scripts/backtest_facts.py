@@ -82,7 +82,7 @@ def main() -> None:
         raise SystemExit(1)
 
     facts = read_latest_facts(con, args.symbol, "ALL", version=args.facts_version)
-    if facts is None:
+    if facts is None and args.strategy != "plan_v1":
         console.print(f"[red]No facts. Run analyze-market first.[/]")
         raise SystemExit(1)
 
@@ -92,9 +92,14 @@ def main() -> None:
             "atr_stop_mult":  args.atr_stop_mult,
             "time_stop_bars": args.time_stop,
         }
-        result = run_plan_backtest(df, facts, risk_params=risk_params, fee_bps=args.fee_bps)
+        # plan_v1: always recompute facts inline from candle data (no lookahead)
+        # External facts from DB are computed from "today" → future bias
+        result = run_plan_backtest(
+            df, facts=None, risk_params=risk_params, fee_bps=args.fee_bps,
+        )
         metrics = result["metrics"]
         trade_log = result.get("trade_log", [])
+
     else:
         params = {"zone_mult": args.zone_mult}
         signals = generate_signals(df, facts, interval=args.interval, params=params)

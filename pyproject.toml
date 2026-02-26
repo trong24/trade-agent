@@ -29,6 +29,8 @@ analyze-market   = "trade_agent.scripts.analyze_market:main"
 backtest-facts   = "trade_agent.scripts.backtest_facts:main"
 get-latest-facts = "trade_agent.scripts.get_latest_facts:main"
 plan-trade       = "trade_agent.scripts.plan_trade:main"
+run-experiments  = "trade_agent.scripts.run_experiments:main"
+walk-forward     = "trade_agent.scripts.walk_forward:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

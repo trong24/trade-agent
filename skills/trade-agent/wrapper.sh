@@ -1,188 +1,118 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# ─────────────────────────────────────────────────────────────────────────────
+# trade-agent wrapper — thin runner for all trade-agent CLI commands
+# Usage:  ./wrapper.sh <command> [args...]
+#
+# Commands:
+#   sync-klines      Sync klines from Binance → DuckDB
+#   analyze-market   Compute trend/SR facts
+#   get-latest-facts Get latest facts JSON
+#   plan-trade       Generate trade plan
+#   backtest-facts   Run backtest
+#   run-experiments  Grid search experiments
+#   walk-forward     Walk-forward stability analysis
+# ─────────────────────────────────────────────────────────────────────────────
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-PROJECT_DIR="$ROOT_DIR/trade-agent"
-VENV_DIR="$PROJECT_DIR/.venv"
-TRADE_BIN="$VENV_DIR/bin/trade-agent"
+VENV_DIR="$ROOT_DIR/.venv"
 PIP_BIN="$VENV_DIR/bin/pip"
 PY_BIN="$VENV_DIR/bin/python"
-TEMPLATE_PATH="$SCRIPT_DIR/reports/report-template.md"
 
-SHORT=20
-LONG=50
-RISK=0.2
-INITIAL_CASH=10000
-FEE_BPS=6
-CSV_PATH=""
-REPORT_OUT=""
-NOTES=""
-FORCE_INSTALL=0
+COMMANDS=(
+  sync-klines
+  analyze-market
+  get-latest-facts
+  plan-trade
+  backtest-facts
+  run-experiments
+  walk-forward
+)
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") --csv <path> [options]
+Usage: $(basename "$0") <command> [args...]
 
-Required:
-  --csv <path>             Path to OHLCV CSV (absolute or workspace-relative)
+Commands:
+  sync-klines        Sync klines from Binance into DuckDB
+  analyze-market     Compute trend + S/R facts (versioned)
+  get-latest-facts   Output latest facts JSON for LLM
+  plan-trade         Generate trade plan with evidence
+  backtest-facts     Run vectorized or plan-based backtest
+  run-experiments    Grid search param combos
+  walk-forward       Rolling train/test stability analysis
 
-Optional:
-  --short <int>            Short SMA window (default: ${SHORT})
-  --long <int>             Long SMA window (default: ${LONG})
-  --risk <float>           Max equity fraction per entry (default: ${RISK})
-  --initial-cash <float>   Initial cash (default: ${INITIAL_CASH})
-  --fee-bps <float>        Fee in bps (default: ${FEE_BPS})
-  --report-out <path>      Output markdown report path
-  --notes <text>           Extra notes included in report
-  --force-install          Force 'pip install -e trade-agent'
-  -h, --help               Show help
+Examples:
+  $(basename "$0") sync-klines --start 2024-01-01
+  $(basename "$0") analyze-market --intervals 1h,4h,1d,1w
+  $(basename "$0") get-latest-facts --json
+  $(basename "$0") plan-trade --explain
+  $(basename "$0") backtest-facts --start 2025-01-01 --fee-bps 2.0
+  $(basename "$0") run-experiments --start 2025-01-01 --interval 1h
+  $(basename "$0") walk-forward --start 2024-06-01
+
+Options:
+  -h, --help         Show this help
+  --force-install    Force reinstall editable package
 EOF
 }
 
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --csv)
-      CSV_PATH="${2:-}"
-      shift 2
-      ;;
-    --short)
-      SHORT="${2:-}"
-      shift 2
-      ;;
-    --long)
-      LONG="${2:-}"
-      shift 2
-      ;;
-    --risk)
-      RISK="${2:-}"
-      shift 2
-      ;;
-    --initial-cash)
-      INITIAL_CASH="${2:-}"
-      shift 2
-      ;;
-    --fee-bps)
-      FEE_BPS="${2:-}"
-      shift 2
-      ;;
-    --report-out)
-      REPORT_OUT="${2:-}"
-      shift 2
-      ;;
-    --notes)
-      NOTES="${2:-}"
-      shift 2
-      ;;
-    --force-install)
-      FORCE_INSTALL=1
-      shift
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    *)
-      echo "Unknown argument: $1" >&2
-      usage
-      exit 1
-      ;;
-  esac
-done
-
-if [[ -z "$CSV_PATH" ]]; then
-  echo "Error: --csv is required" >&2
+# ── Check args ─────────────────────────────────────────────────────────────
+if [[ $# -eq 0 ]]; then
   usage
   exit 1
 fi
 
-if [[ ! -d "$PROJECT_DIR" ]]; then
-  echo "Error: project directory not found: $PROJECT_DIR" >&2
+COMMAND="$1"
+shift
+
+if [[ "$COMMAND" == "-h" || "$COMMAND" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+# Handle --force-install anywhere in args
+FORCE_INSTALL=0
+REMAINING_ARGS=()
+for arg in "$@"; do
+  if [[ "$arg" == "--force-install" ]]; then
+    FORCE_INSTALL=1
+  else
+    REMAINING_ARGS+=("$arg")
+  fi
+done
+
+# ── Validate command ───────────────────────────────────────────────────────
+VALID=0
+for cmd in "${COMMANDS[@]}"; do
+  if [[ "$COMMAND" == "$cmd" ]]; then
+    VALID=1
+    break
+  fi
+done
+
+if [[ "$VALID" -eq 0 ]]; then
+  echo "Error: unknown command '$COMMAND'" >&2
+  echo ""
+  usage
   exit 1
 fi
 
-if [[ "$CSV_PATH" != /* ]]; then
-  CSV_PATH="$ROOT_DIR/$CSV_PATH"
-fi
-
-if [[ ! -f "$CSV_PATH" ]]; then
-  echo "Error: CSV file not found: $CSV_PATH" >&2
-  exit 1
-fi
-
-if (( SHORT >= LONG )); then
-  echo "Error: --short must be smaller than --long" >&2
-  exit 1
-fi
-
+# ── Bootstrap venv ─────────────────────────────────────────────────────────
 if [[ ! -x "$PY_BIN" ]]; then
   echo "[trade-agent wrapper] Creating virtualenv..."
   python3 -m venv "$VENV_DIR"
 fi
 
-if [[ ! -x "$TRADE_BIN" || "$FORCE_INSTALL" -eq 1 ]]; then
+CMD_BIN="$VENV_DIR/bin/$COMMAND"
+
+if [[ ! -x "$CMD_BIN" || "$FORCE_INSTALL" -eq 1 ]]; then
   echo "[trade-agent wrapper] Installing package (editable)..."
-  "$PIP_BIN" install -e "$PROJECT_DIR" >/dev/null
+  "$PIP_BIN" install -e "$ROOT_DIR" -q
 fi
 
-RAW_OUTPUT="$($TRADE_BIN \
-  --csv "$CSV_PATH" \
-  --short "$SHORT" \
-  --long "$LONG" \
-  --risk "$RISK" \
-  --initial-cash "$INITIAL_CASH" \
-  --fee-bps "$FEE_BPS")"
-
-printf '%s\n' "$RAW_OUTPUT"
-
-if [[ -n "$REPORT_OUT" ]]; then
-  if [[ "$REPORT_OUT" != /* ]]; then
-    REPORT_OUT="$ROOT_DIR/$REPORT_OUT"
-  fi
-
-  mkdir -p "$(dirname "$REPORT_OUT")"
-
-  RAW_OUTPUT_ENV="$RAW_OUTPUT" python3 - "$TEMPLATE_PATH" "$REPORT_OUT" "$CSV_PATH" "$SHORT" "$LONG" "$RISK" "$INITIAL_CASH" "$FEE_BPS" "$NOTES" <<'PY'
-import os
-import re
-import sys
-from datetime import datetime, timezone
-from pathlib import Path
-
-template_path, report_out, csv_path, short_w, long_w, risk, initial_cash, fee_bps, notes = sys.argv[1:]
-raw = os.environ.get("RAW_OUTPUT_ENV", "")
-template = Path(template_path).read_text(encoding="utf-8")
-
-def pick(pattern: str, default: str = "N/A") -> str:
-    m = re.search(pattern, raw, flags=re.MULTILINE)
-    return m.group(1).strip() if m else default
-
-values = {
-    "RUN_AT": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
-    "CSV_PATH": csv_path,
-    "SHORT_WINDOW": short_w,
-    "LONG_WINDOW": long_w,
-    "RISK": risk,
-    "INITIAL_CASH": initial_cash,
-    "FEE_BPS": fee_bps,
-    "INITIAL_CASH_RESULT": pick(r"Initial Cash\s*:\s*(.+)"),
-    "FINAL_EQUITY": pick(r"Final Equity\s*:\s*(.+)"),
-    "RETURN_PCT": pick(r"Return\s*:\s*(.+)"),
-    "MAX_DRAWDOWN_PCT": pick(r"Max Drawdown\s*:\s*(.+)"),
-    "TOTAL_FEES": pick(r"Total Fees\s*:\s*(.+)"),
-    "TRADES": pick(r"Trades\s*:\s*(.+)"),
-    "WINS_LOSSES": pick(r"Wins / Losses\s*:\s*(.+)"),
-    "WIN_RATE_PCT": pick(r"Win Rate\s*:\s*(.+)"),
-    "RAW_OUTPUT": raw.strip(),
-    "NOTES": notes.strip() if notes.strip() else "-",
-}
-
-for key, value in values.items():
-    template = template.replace(f"{{{{{key}}}}}", str(value))
-
-Path(report_out).write_text(template, encoding="utf-8")
-PY
-
-  echo
-  echo "Report written: $REPORT_OUT"
-fi
+# ── Run ────────────────────────────────────────────────────────────────────
+cd "$ROOT_DIR"
+exec "$CMD_BIN" ${REMAINING_ARGS[@]+"${REMAINING_ARGS[@]}"}
