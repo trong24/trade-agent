@@ -45,6 +45,8 @@ def _parse_kline(raw: list) -> dict:
         "close_time": raw[6],  # int ms
         "quote_volume": float(raw[7]),
         "trades": int(raw[8]),
+        "taker_buy_base": float(raw[9]),
+        "taker_buy_quote": float(raw[10]),
     }
 
 
