@@ -1,4 +1,5 @@
 """Tests for DuckDB upsert, trend computation, and S/R stability."""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -13,6 +14,7 @@ from trade_agent.analysis.sr import compute_sr
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
+
 
 def _make_candle_df(
     n: int = 200,
@@ -32,31 +34,34 @@ def _make_candle_df(
         elif trend == "down":
             p *= 0.999
         else:
-            p += (10 if i % 2 == 0 else -10)
+            p += 10 if i % 2 == 0 else -10
         prices.append(p)
 
     df = pd.DataFrame(index=pd.DatetimeIndex(idx, tz="UTC"))
-    df["open"]   = [p * 0.999 for p in prices]
-    df["high"]   = [p * 1.002 for p in prices]
-    df["low"]    = [p * 0.997 for p in prices]
-    df["close"]  = prices
+    df["open"] = [p * 0.999 for p in prices]
+    df["high"] = [p * 1.002 for p in prices]
+    df["low"] = [p * 0.997 for p in prices]
+    df["close"] = prices
     df["volume"] = 100.0
     return df
 
 
-def _df_to_upsert_records(df: pd.DataFrame, symbol: str = "BTCUSDT", interval: str = "1h") -> pd.DataFrame:
+def _df_to_upsert_records(
+    df: pd.DataFrame, symbol: str = "BTCUSDT", interval: str = "1h"
+) -> pd.DataFrame:
     """Convert synthetic df to the candles schema format."""
     out = df.reset_index().rename(columns={"index": "open_time"})
-    out["symbol"]          = symbol
-    out["interval"]        = interval
-    out["close_time"]      = out["open_time"] + timedelta(hours=1)
-    out["trades"]          = 50
-    out["taker_buy_base"]  = 50.0
+    out["symbol"] = symbol
+    out["interval"] = interval
+    out["close_time"] = out["open_time"] + timedelta(hours=1)
+    out["trades"] = 50
+    out["taker_buy_base"] = 50.0
     out["taker_buy_quote"] = 50.0 * out["close"]
     return out
 
 
 # ── DB Tests ──────────────────────────────────────────────────────────────────
+
 
 def test_upsert_no_duplicates(tmp_path):
     """Inserting the same candles twice should yield exactly N rows."""
@@ -89,9 +94,7 @@ def test_upsert_incremental(tmp_path):
     upsert_candles(con, _df_to_upsert_records(df1))
     upsert_candles(con, _df_to_upsert_records(df2))
 
-    count = con.execute(
-        "SELECT COUNT(*) FROM candles WHERE symbol='BTCUSDT'"
-    ).fetchone()[0]
+    count = con.execute("SELECT COUNT(*) FROM candles WHERE symbol='BTCUSDT'").fetchone()[0]
     assert count == 20
     con.close()
 
@@ -114,6 +117,7 @@ def test_read_candles_utc_index(tmp_path):
 
 # ── Trend Tests ───────────────────────────────────────────────────────────────
 
+
 def test_trend_outputs_no_nan():
     """compute_trend should return all numeric values, no NaN."""
     df = _make_candle_df(n=200, trend="up")
@@ -126,15 +130,17 @@ def test_trend_outputs_no_nan():
 def test_trend_up_direction():
     df = _make_candle_df(n=200, trend="up")
     result = compute_trend(df)
-    assert result["trend_dir"] in ("up", "sideway"), \
+    assert result["trend_dir"] in ("up", "sideway"), (
         f"Expected up or sideway for uptrend data, got {result['trend_dir']}"
+    )
 
 
 def test_trend_down_direction():
     df = _make_candle_df(n=200, trend="down")
     result = compute_trend(df)
-    assert result["trend_dir"] in ("down", "sideway"), \
+    assert result["trend_dir"] in ("down", "sideway"), (
         f"Expected down or sideway for downtrend data, got {result['trend_dir']}"
+    )
 
 
 def test_trend_strength_bounded():
@@ -144,6 +150,7 @@ def test_trend_strength_bounded():
 
 
 # ── S/R Tests ─────────────────────────────────────────────────────────────────
+
 
 def test_sr_cluster_stable():
     """compute_sr on the same data twice should produce identical cluster count."""
@@ -166,7 +173,7 @@ def test_sr_returns_expected_structure():
 
 
 def test_sr_empty_on_too_few_bars():
-    df = _make_candle_df(n=5)   # not enough bars for fractals
+    df = _make_candle_df(n=5)  # not enough bars for fractals
     result = compute_sr(df)
     assert result["levels"] == []
     assert result["zones"] == []

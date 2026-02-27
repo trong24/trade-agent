@@ -5,6 +5,7 @@ Usage:
     sync-klines --intervals 1h,4h --start 2024-01-01 --end 2025-01-01
     python -m trade_agent.scripts.sync_klines --start 2023-01-01
 """
+
 from __future__ import annotations
 
 import argparse
@@ -49,8 +50,7 @@ def _batch_to_df(symbol: str, interval: str, batch: list[dict]) -> pd.DataFrame:
     df["interval"] = interval
     df["open_time"] = pd.to_datetime(df["open_time"], unit="ms", utc=True)
     df["close_time"] = pd.to_datetime(df["close_time"], unit="ms", utc=True)
-    for col in ("open", "high", "low", "close", "volume",
-                "taker_buy_base", "taker_buy_quote"):
+    for col in ("open", "high", "low", "close", "volume", "taker_buy_base", "taker_buy_quote"):
         if col in df.columns:
             df[col] = df[col].astype("float64")
     if "trades" in df.columns:
@@ -60,10 +60,13 @@ def _batch_to_df(symbol: str, interval: str, batch: list[dict]) -> pd.DataFrame:
 
 def _get_last_open_time(con, symbol: str, interval: str) -> datetime | None:
     """Return latest open_time stored in DB, or None."""
-    row = con.execute("""
+    row = con.execute(
+        """
         SELECT MAX(open_time) FROM candles
         WHERE symbol = ? AND interval = ?
-    """, [symbol.upper(), interval]).fetchone()
+    """,
+        [symbol.upper(), interval],
+    ).fetchone()
     val = row[0] if row else None
     if val is None:
         return None
@@ -109,16 +112,20 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=f"Supported intervals: {', '.join(SUPPORTED_INTERVALS)}",
     )
-    p.add_argument("--db",        default="data/trade.duckdb",
-                   help="DuckDB file path (default: data/trade.duckdb)")
-    p.add_argument("--symbol",    default=_DEFAULT_SYMBOL)
-    p.add_argument("--intervals",
-                   default=",".join(SUPPORTED_INTERVALS),
-                   help="Comma-separated intervals (default: all)")
-    p.add_argument("--start",     required=True, help="Start date ISO e.g. 2021-01-01")
-    p.add_argument("--end",       default=None,  help="End date ISO (default: now UTC)")
-    p.add_argument("--force",     action="store_true",
-                   help="Re-sync from --start ignoring stored last_open_time")
+    p.add_argument(
+        "--db", default="data/trade.duckdb", help="DuckDB file path (default: data/trade.duckdb)"
+    )
+    p.add_argument("--symbol", default=_DEFAULT_SYMBOL)
+    p.add_argument(
+        "--intervals",
+        default=",".join(SUPPORTED_INTERVALS),
+        help="Comma-separated intervals (default: all)",
+    )
+    p.add_argument("--start", required=True, help="Start date ISO e.g. 2021-01-01")
+    p.add_argument("--end", default=None, help="End date ISO (default: now UTC)")
+    p.add_argument(
+        "--force", action="store_true", help="Re-sync from --start ignoring stored last_open_time"
+    )
     p.add_argument("-v", "--verbose", action="store_true")
     return p
 

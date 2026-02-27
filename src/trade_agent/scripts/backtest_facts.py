@@ -5,6 +5,7 @@ Usage:
     backtest-facts --start 2025-01-01 --strategy plan_v1 --show-trades
     backtest-facts --start 2025-01-01 --strategy plan_v1 --json
 """
+
 from __future__ import annotations
 
 import argparse
@@ -40,24 +41,28 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Backtest: vectorized (sr_trend_v1) or plan-based (plan_v1)",
     )
-    p.add_argument("--db",            default="data/trade.duckdb")
-    p.add_argument("--symbol",        default="BTCUSDT")
-    p.add_argument("--interval",      default="1h")
-    p.add_argument("--start",         required=True, help="Start date ISO")
-    p.add_argument("--end",           default=None, help="End date ISO")
+    p.add_argument("--db", default="data/trade.duckdb")
+    p.add_argument("--symbol", default="BTCUSDT")
+    p.add_argument("--interval", default="1h")
+    p.add_argument("--start", required=True, help="Start date ISO")
+    p.add_argument("--end", default=None, help="End date ISO")
     p.add_argument("--facts-version", default="v1")
-    p.add_argument("--strategy",      default="sr_trend_v1",
-                   choices=["sr_trend_v1", "plan_v1"],
-                   help="Strategy: sr_trend_v1 (vectorized) | plan_v1 (plan rules)")
-    p.add_argument("--fee-bps",       type=float, default=2.0)
-    p.add_argument("--zone-mult",     type=float, default=1.5)
+    p.add_argument(
+        "--strategy",
+        default="sr_trend_v1",
+        choices=["sr_trend_v1", "plan_v1"],
+        help="Strategy: sr_trend_v1 (vectorized) | plan_v1 (plan rules)",
+    )
+    p.add_argument("--fee-bps", type=float, default=2.0)
+    p.add_argument("--zone-mult", type=float, default=1.5)
     p.add_argument("--atr-stop-mult", type=float, default=1.5)
-    p.add_argument("--time-stop",     type=int,   default=20)
-    p.add_argument("--show-trades",   action="store_true",
-                   help="Print detailed trade log (plan_v1 only)")
-    p.add_argument("--json",          action="store_true", dest="json_mode")
-    p.add_argument("--save",          action="store_true")
-    p.add_argument("-v", "--verbose",  action="store_true")
+    p.add_argument("--time-stop", type=int, default=20)
+    p.add_argument(
+        "--show-trades", action="store_true", help="Print detailed trade log (plan_v1 only)"
+    )
+    p.add_argument("--json", action="store_true", dest="json_mode")
+    p.add_argument("--save", action="store_true")
+    p.add_argument("-v", "--verbose", action="store_true")
     return p
 
 
@@ -89,13 +94,16 @@ def main() -> None:
     # ── Run strategy ───────────────────────────────────────────────────────
     if args.strategy == "plan_v1":
         risk_params = {
-            "atr_stop_mult":  args.atr_stop_mult,
+            "atr_stop_mult": args.atr_stop_mult,
             "time_stop_bars": args.time_stop,
         }
         # plan_v1: always recompute facts inline from candle data (no lookahead)
         # External facts from DB are computed from "today" → future bias
         result = run_plan_backtest(
-            df, facts=None, risk_params=risk_params, fee_bps=args.fee_bps,
+            df,
+            facts=None,
+            risk_params=risk_params,
+            fee_bps=args.fee_bps,
         )
         metrics = result["metrics"]
         trade_log = result.get("trade_log", [])
@@ -110,9 +118,12 @@ def main() -> None:
     if args.save:
         run_id = str(uuid.uuid4())
         insert_backtest_run(
-            con, run_id=run_id,
-            symbol=args.symbol, interval=args.interval,
-            start_time=start_dt, end_time=end_dt,
+            con,
+            run_id=run_id,
+            symbol=args.symbol,
+            interval=args.interval,
+            start_time=start_dt,
+            end_time=end_dt,
             strategy_id=args.strategy,
             params={"fee_bps": args.fee_bps, "zone_mult": args.zone_mult},
             facts_version=args.facts_version,
@@ -141,26 +152,26 @@ def main() -> None:
         show_header=False,
     )
     tbl.add_column("Metric", style="bold cyan", width=22)
-    tbl.add_column("Value",  style="white")
+    tbl.add_column("Value", style="white")
 
-    tbl.add_row("Bias",          metrics.get("bias", "-"))
-    tbl.add_row("Bars",          str(metrics.get("bars", 0)))
-    tbl.add_row("Trades",        str(metrics.get("trades", 0)))
-    tbl.add_row("Total Return",  f"{metrics.get('total_return_pct', 0):.2f}%")
-    tbl.add_row("Max Drawdown",  f"{metrics.get('max_drawdown_pct', 0):.2f}%")
+    tbl.add_row("Bias", metrics.get("bias", "-"))
+    tbl.add_row("Bars", str(metrics.get("bars", 0)))
+    tbl.add_row("Trades", str(metrics.get("trades", 0)))
+    tbl.add_row("Total Return", f"{metrics.get('total_return_pct', 0):.2f}%")
+    tbl.add_row("Max Drawdown", f"{metrics.get('max_drawdown_pct', 0):.2f}%")
 
     if "sharpe" in metrics:
         tbl.add_row("Sharpe (ann.)", f"{metrics['sharpe']:.3f}")
     if "win_rate_pct" in metrics:
-        tbl.add_row("Win Rate",     f"{metrics['win_rate_pct']:.1f}%")
+        tbl.add_row("Win Rate", f"{metrics['win_rate_pct']:.1f}%")
     if "profit_factor" in metrics:
         tbl.add_row("Profit Factor", f"{metrics['profit_factor']:.3f}")
     if "avg_win_pct" in metrics:
-        tbl.add_row("Avg Win",      f"{metrics['avg_win_pct']:.2f}%")
+        tbl.add_row("Avg Win", f"{metrics['avg_win_pct']:.2f}%")
     if "avg_loss_pct" in metrics:
-        tbl.add_row("Avg Loss",     f"{metrics['avg_loss_pct']:.2f}%")
+        tbl.add_row("Avg Loss", f"{metrics['avg_loss_pct']:.2f}%")
 
-    tbl.add_row("Fee (bps)",     str(args.fee_bps))
+    tbl.add_row("Fee (bps)", str(args.fee_bps))
     tbl.add_row("Facts version", args.facts_version)
     console.print(tbl)
 

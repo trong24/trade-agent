@@ -1,4 +1,5 @@
 """Vectorized technical indicators — pure pandas, no external TA library needed."""
+
 from __future__ import annotations
 
 import pandas as pd

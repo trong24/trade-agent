@@ -3,6 +3,7 @@
 Provides 5-10 lines explaining WHY a certain plan was generated.
 LLM uses this to avoid hallucinating: every recommendation has evidence.
 """
+
 from __future__ import annotations
 
 
@@ -30,9 +31,7 @@ def explain_plan(facts: dict, plan: dict) -> list[str]:
             d = t.get("dir", "?")
             s = t.get("strength", 0)
             atr = t.get("atr_pct", 0)
-            lines.append(
-                f"  {tf}: {d} (strength={s:.2f}, ATR%={atr:.1f}%)"
-            )
+            lines.append(f"  {tf}: {d} (strength={s:.2f}, ATR%={atr:.1f}%)")
 
     # 3. Bias chain
     chain = plan.get("bias_chain", {})
@@ -49,13 +48,11 @@ def explain_plan(facts: dict, plan: dict) -> list[str]:
     bias = plan.get("primary_bias", "neutral")
     if bias == "long":
         lines.append(
-            f"DIRECTION: Long bias — higher TF trending up, "
-            f"looking for pullback to support"
+            f"DIRECTION: Long bias — higher TF trending up, looking for pullback to support"
         )
     elif bias == "short":
         lines.append(
-            f"DIRECTION: Short bias — higher TF trending down, "
-            f"looking for rally to resistance"
+            f"DIRECTION: Short bias — higher TF trending down, looking for rally to resistance"
         )
     else:
         lines.append("DIRECTION: Neutral — no clear directional edge")

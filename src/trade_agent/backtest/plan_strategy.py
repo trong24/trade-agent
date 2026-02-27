@@ -12,6 +12,7 @@ Rules:
   - Invalidation: exit if invalidation level broken
   - Trade log: records each decision with rule trigger
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -27,25 +28,32 @@ from trade_agent.analysis.trend import compute_trend
 @dataclass
 class TradeRecord:
     """A single completed trade with rule triggers."""
-    entry_time:   str
-    exit_time:    str
-    side:         str
-    entry_price:  float
-    exit_price:   float
-    pnl_pct:      float
-    exit_reason:  str
-    bars_held:    int
+
+    entry_time: str
+    exit_time: str
+    side: str
+    entry_price: float
+    exit_price: float
+    pnl_pct: float
+    exit_reason: str
+    bars_held: int
 
 
 def _resample_ohlcv(df: pd.DataFrame, rule: str) -> pd.DataFrame:
     """Resample OHLCV DataFrame to a lower frequency (e.g. '4h', '1D')."""
-    resampled = df.resample(rule).agg({
-        "open":   "first",
-        "high":   "max",
-        "low":    "min",
-        "close":  "last",
-        "volume": "sum",
-    }).dropna(subset=["open"])
+    resampled = (
+        df.resample(rule)
+        .agg(
+            {
+                "open": "first",
+                "high": "max",
+                "low": "min",
+                "close": "last",
+                "volume": "sum",
+            }
+        )
+        .dropna(subset=["open"])
+    )
     return resampled
 
 
@@ -69,7 +77,7 @@ def _compute_facts_from_candles(
     trend_1h = compute_trend(analysis_df)
     per_tf["1h"] = {
         "trend": trend_1h,
-        "sr":    compute_sr(analysis_df),
+        "sr": compute_sr(analysis_df),
     }
 
     # Resample to 4h
@@ -77,7 +85,7 @@ def _compute_facts_from_candles(
     if len(df_4h) >= 30:
         per_tf["4h"] = {
             "trend": compute_trend(df_4h),
-            "sr":    compute_sr(df_4h),
+            "sr": compute_sr(df_4h),
         }
 
     # Resample to 1D
@@ -85,7 +93,7 @@ def _compute_facts_from_candles(
     if len(df_1d) >= 14:
         per_tf["1d"] = {
             "trend": compute_trend(df_1d),
-            "sr":    compute_sr(df_1d),
+            "sr": compute_sr(df_1d),
         }
 
     payload = build_payload(symbol, as_of, per_tf)
@@ -93,9 +101,7 @@ def _compute_facts_from_candles(
     # Fallback: if bias_chain is all neutral but 1h has a clear trend,
     # override bias_chain to use 1h trend directly (better than no trades)
     chain = payload.get("bias_chain", {})
-    all_neutral = all(
-        v.get("bias") == "neutral" for v in chain.values()
-    )
+    all_neutral = all(v.get("bias") == "neutral" for v in chain.values())
     if all_neutral and not trend_1h.get("is_sideway"):
         d = trend_1h.get("trend_dir", "sideway")
         if d == "up":
@@ -114,7 +120,6 @@ def _compute_facts_from_candles(
     return payload
 
 
-
 def _validate_facts_for_data(facts: dict, df: pd.DataFrame) -> dict | None:
     """Check if facts key_levels are within reasonable range of actual data.
 
@@ -125,10 +130,7 @@ def _validate_facts_for_data(facts: dict, df: pd.DataFrame) -> dict | None:
     data_max = float(price_range.max()) * 1.2
 
     levels = facts.get("key_levels", [])
-    valid_levels = [
-        lv for lv in levels
-        if data_min <= lv.get("price", 0) <= data_max
-    ]
+    valid_levels = [lv for lv in levels if data_min <= lv.get("price", 0) <= data_max]
 
     if not valid_levels:
         return None  # all levels out of range → recompute
@@ -187,7 +189,7 @@ def run_plan_backtest(
     targets = plan.get("targets", [])
     inv = plan.get("invalidation", {})
     rp = {
-        "atr_stop_mult":  1.5,
+        "atr_stop_mult": 1.5,
         "time_stop_bars": 20,
         **(risk_params or {}),
     }
@@ -283,18 +285,20 @@ def run_plan_backtest(
                 else:
                     pnl = (entry_price / exit_price - 1) - 2 * fee_rate
 
-                equity *= (1 + pnl)
+                equity *= 1 + pnl
 
-                trades.append(TradeRecord(
-                    entry_time=str(times[entry_bar]),
-                    exit_time=ts,
-                    side="long" if position == 1 else "short",
-                    entry_price=round(entry_price, 2),
-                    exit_price=round(exit_price, 2),
-                    pnl_pct=round(pnl * 100, 4),
-                    exit_reason=exit_reason,
-                    bars_held=bars_held,
-                ))
+                trades.append(
+                    TradeRecord(
+                        entry_time=str(times[entry_bar]),
+                        exit_time=ts,
+                        side="long" if position == 1 else "short",
+                        entry_price=round(entry_price, 2),
+                        exit_price=round(exit_price, 2),
+                        pnl_pct=round(pnl * 100, 4),
+                        exit_reason=exit_reason,
+                        bars_held=bars_held,
+                    )
+                )
                 position = 0
 
     # Close any open position at end
@@ -305,17 +309,19 @@ def run_plan_backtest(
             pnl = (c / entry_price - 1) - 2 * fee_rate
         else:
             pnl = (entry_price / c - 1) - 2 * fee_rate
-        equity *= (1 + pnl)
-        trades.append(TradeRecord(
-            entry_time=str(times[entry_bar]),
-            exit_time=str(times[-1]),
-            side="long" if position == 1 else "short",
-            entry_price=round(entry_price, 2),
-            exit_price=round(c, 2),
-            pnl_pct=round(pnl * 100, 4),
-            exit_reason="end",
-            bars_held=bars_held,
-        ))
+        equity *= 1 + pnl
+        trades.append(
+            TradeRecord(
+                entry_time=str(times[entry_bar]),
+                exit_time=str(times[-1]),
+                side="long" if position == 1 else "short",
+                entry_price=round(entry_price, 2),
+                exit_price=round(c, 2),
+                pnl_pct=round(pnl * 100, 4),
+                exit_reason="end",
+                bars_held=bars_held,
+            )
+        )
 
     # ── Metrics ────────────────────────────────────────────────────────────
     total_return = (equity - 1) * 100
@@ -335,40 +341,38 @@ def run_plan_backtest(
     avg_win = sum(t.pnl_pct for t in wins) / len(wins) if wins else 0
     avg_loss = sum(t.pnl_pct for t in losses) / len(losses) if losses else 0
     loss_sum = sum(t.pnl_pct for t in losses)
-    profit_factor = abs(
-        sum(t.pnl_pct for t in wins) / loss_sum
-    ) if loss_sum != 0 else 0
+    profit_factor = abs(sum(t.pnl_pct for t in wins) / loss_sum) if loss_sum != 0 else 0
 
     metrics = {
         "total_return_pct": round(total_return, 4),
         "max_drawdown_pct": round(max_dd * 100, 4),
-        "trades":           len(trades),
-        "wins":             len(wins),
-        "losses":           len(losses),
-        "win_rate_pct":     round(len(wins) / max(len(trades), 1) * 100, 1),
-        "avg_win_pct":      round(avg_win, 4),
-        "avg_loss_pct":     round(avg_loss, 4),
-        "profit_factor":    round(profit_factor, 3),
-        "bars":             len(df),
-        "bias":             bias,
+        "trades": len(trades),
+        "wins": len(wins),
+        "losses": len(losses),
+        "win_rate_pct": round(len(wins) / max(len(trades), 1) * 100, 1),
+        "avg_win_pct": round(avg_win, 4),
+        "avg_loss_pct": round(avg_loss, 4),
+        "profit_factor": round(profit_factor, 3),
+        "bars": len(df),
+        "bias": bias,
     }
 
     trade_log = [
         {
-            "entry":       t.entry_time,
-            "exit":        t.exit_time,
-            "side":        t.side,
+            "entry": t.entry_time,
+            "exit": t.exit_time,
+            "side": t.side,
             "entry_price": t.entry_price,
-            "exit_price":  t.exit_price,
-            "pnl_pct":     t.pnl_pct,
-            "reason":      t.exit_reason,
-            "bars":        t.bars_held,
+            "exit_price": t.exit_price,
+            "pnl_pct": t.pnl_pct,
+            "reason": t.exit_reason,
+            "bars": t.bars_held,
         }
         for t in trades
     ]
 
     return {
-        "metrics":   metrics,
+        "metrics": metrics,
         "trade_log": trade_log,
-        "plan":      plan,
+        "plan": plan,
     }

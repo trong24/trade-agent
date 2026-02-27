@@ -15,7 +15,7 @@ set -euo pipefail
 #   walk-forward     Walk-forward stability analysis
 # ─────────────────────────────────────────────────────────────────────────────
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 ROOT_DIR="$SCRIPT_DIR"
 VENV_DIR="$ROOT_DIR/.venv"
 PIP_BIN="$VENV_DIR/bin/pip"
@@ -29,6 +29,7 @@ COMMANDS=(
   backtest-facts
   run-experiments
   walk-forward
+  dashboard
 )
 
 usage() {
@@ -43,6 +44,7 @@ Commands:
   backtest-facts     Run vectorized or plan-based backtest
   run-experiments    Grid search param combos
   walk-forward       Rolling train/test stability analysis
+  dashboard          Launch web analytics dashboard (TradingView)
 
 Examples:
   $(basename "$0") sync-klines --start 2024-01-01
@@ -52,6 +54,7 @@ Examples:
   $(basename "$0") backtest-facts --start 2025-01-01 --fee-bps 2.0
   $(basename "$0") run-experiments --start 2025-01-01 --interval 1h
   $(basename "$0") walk-forward --start 2024-06-01
+  $(basename "$0") dashboard
 
 Options:
   -h, --help         Show this help

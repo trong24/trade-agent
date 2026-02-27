@@ -8,6 +8,7 @@ Signal rules (sr_trend_v1):
   - Neutral / sideway → 0
   - Positions shifted 1 bar (no lookahead)
 """
+
 from __future__ import annotations
 
 import pandas as pd
@@ -37,9 +38,7 @@ def _get_zones(facts: dict, kind: str) -> list[dict]:
     return [lv for lv in facts.get("key_levels", []) if lv.get("kind") == kind]
 
 
-def _price_near_zone(
-    price: float, zones: list[dict], zone_mult: float = 1.5
-) -> bool:
+def _price_near_zone(price: float, zones: list[dict], zone_mult: float = 1.5) -> bool:
     """True if price is within zone_mult × zone_width of any zone."""
     for z in zones:
         level_price = z.get("price", 0)
@@ -131,7 +130,7 @@ def run_vectorized_backtest(
     return {
         "total_return_pct": round(total_return, 4),
         "max_drawdown_pct": round(max_dd, 4),
-        "sharpe":           round(sharpe, 4),
-        "trades":           int(entries),
-        "bars":             len(df),
+        "sharpe": round(sharpe, 4),
+        "trades": int(entries),
+        "bars": len(df),
     }

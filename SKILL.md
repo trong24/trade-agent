@@ -67,6 +67,12 @@ Comprehensive research engine for BTCUSDT futures. Provides CLI commands to:
 ./skills/trade-agent/wrapper.sh walk-forward --start 2024-06-01 --interval 1h
 ```
 
+### 8. Analytics Dashboard (WebView)
+Launch the interactive TradingView-based dashboard to visualize backtests:
+```bash
+./skills/trade-agent/wrapper.sh dashboard
+```
+
 ## Output Contract
 - All commands output Rich tables to stdout
 - `--json` flag outputs raw JSON (pipe-friendly for LLM reasoning)

@@ -3,6 +3,7 @@
 Provides a clean bridge between the data layer and the backtest engine,
 without going through CSV as intermediary.
 """
+
 from __future__ import annotations
 
 from datetime import datetime

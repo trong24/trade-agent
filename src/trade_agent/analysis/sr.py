@@ -11,6 +11,7 @@ v3 changes vs v2:
   - Flip zone logic: level whose BOS was broken → role swaps S↔R
   - Output adds fields: structural, rsi_regime, rsi_score_bonus, flipped
 """
+
 from __future__ import annotations
 
 import math
@@ -25,19 +26,19 @@ from .indicators import atr  # unchanged import
 # ── defaults ────────────────────────────────────────────────────────────────
 _DEFAULT_PARAMS = {
     # pivot / cluster
-    "fractal_n":      2,
-    "cluster_tol":    0.25,
-    "atr_period":     14,
-    "recency_half":   50,
-    "max_levels":     20,
-    "wick_bonus":     0.5,
+    "fractal_n": 2,
+    "cluster_tol": 0.25,
+    "atr_period": 14,
+    "recency_half": 50,
+    "max_levels": 20,
+    "wick_bonus": 0.5,
     "wick_threshold": 0.6,
     # structural swing confirmation window
-    "confirm_bars":   50,   # bars to look ahead for LL/HH confirmation
+    "confirm_bars": 50,  # bars to look ahead for LL/HH confirmation
     # Hayden RSI
-    "rsi_period":     14,
-    "rsi_ema_fast":   9,
-    "rsi_wma_slow":   45,
+    "rsi_period": 14,
+    "rsi_ema_fast": 9,
+    "rsi_wma_slow": 45,
     "rsi_score_bonus": 0.3,  # added to score when RSI confirms swing
 }
 
@@ -45,25 +46,25 @@ _DEFAULT_PARAMS = {
 # ── data classes ─────────────────────────────────────────────────────────────
 @dataclass
 class _Level:
-    price:      float
-    kind:       str        # 'support' | 'resistance'
-    touches:    int  = 1
-    last_bar:   int  = 0
-    scores:     list[float] = field(default_factory=list)
-    structural: bool = False   # confirmed by LL / HH
-    flipped:    bool = False   # role changed after BOS
+    price: float
+    kind: str  # 'support' | 'resistance'
+    touches: int = 1
+    last_bar: int = 0
+    scores: list[float] = field(default_factory=list)
+    structural: bool = False  # confirmed by LL / HH
+    flipped: bool = False  # role changed after BOS
 
 
 # ── RSI helpers ──────────────────────────────────────────────────────────────
 def _calc_rsi(close: pd.Series, period: int = 14) -> pd.Series:
     """Wilder's RSI (RMA smoothing)."""
     delta = close.diff()
-    gain  = delta.clip(lower=0)
-    loss  = -delta.clip(upper=0)
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
     alpha = 1 / period
     avg_g = gain.ewm(alpha=alpha, min_periods=period, adjust=False).mean()
     avg_l = loss.ewm(alpha=alpha, min_periods=period, adjust=False).mean()
-    rs    = avg_g / avg_l.replace(0, np.nan)
+    rs = avg_g / avg_l.replace(0, np.nan)
     return 100 - (100 / (1 + rs))
 
 
@@ -78,33 +79,35 @@ def _hayden_rsi(close: pd.Series, rsi_p: int, fast: int, slow: int) -> pd.DataFr
     Compute Hayden RSI system columns:
       rsi, ema_fast, wma_slow, regime, bull_zone, bear_zone
     """
-    rsi      = _calc_rsi(close, rsi_p)
+    rsi = _calc_rsi(close, rsi_p)
     ema_fast = rsi.ewm(span=fast, adjust=False).mean()
     wma_slow = _calc_wma(rsi, slow)
 
-    price_ema  = close.ewm(span=fast, adjust=False).mean()
-    price_wma  = _calc_wma(close, slow)
+    price_ema = close.ewm(span=fast, adjust=False).mean()
+    price_wma = _calc_wma(close, slow)
 
     price_bull = price_ema > price_wma
-    rsi_bull   = ema_fast  > wma_slow
+    rsi_bull = ema_fast > wma_slow
 
     regime = pd.Series("UNDEFINED", index=close.index)
-    regime[price_bull  & rsi_bull]  = "UP"
+    regime[price_bull & rsi_bull] = "UP"
     regime[~price_bull & ~rsi_bull] = "DOWN"
-    regime[price_bull  & ~rsi_bull] = "SIDEWAYS_UP"
-    regime[~price_bull & rsi_bull]  = "SIDEWAYS_DOWN"
+    regime[price_bull & ~rsi_bull] = "SIDEWAYS_UP"
+    regime[~price_bull & rsi_bull] = "SIDEWAYS_DOWN"
 
-    bull_zone = (rsi >= 40) & (rsi <= 82)   # Hayden 40–80 bull range
-    bear_zone = (rsi >= 18) & (rsi <= 62)   # Hayden 20–60 bear range
+    bull_zone = (rsi >= 40) & (rsi <= 82)  # Hayden 40–80 bull range
+    bear_zone = (rsi >= 18) & (rsi <= 62)  # Hayden 20–60 bear range
 
-    return pd.DataFrame({
-        "rsi":       rsi,
-        "ema_fast":  ema_fast,
-        "wma_slow":  wma_slow,
-        "regime":    regime,
-        "bull_zone": bull_zone,
-        "bear_zone": bear_zone,
-    })
+    return pd.DataFrame(
+        {
+            "rsi": rsi,
+            "ema_fast": ema_fast,
+            "wma_slow": wma_slow,
+            "regime": regime,
+            "bull_zone": bull_zone,
+            "bear_zone": bear_zone,
+        }
+    )
 
 
 def _rsi_score_at(rsi_df: pd.DataFrame, bar_idx: int, kind: str) -> float:
@@ -123,10 +126,10 @@ def _rsi_score_at(rsi_df: pd.DataFrame, bar_idx: int, kind: str) -> float:
 
     if kind == "resistance":
         regime_ok = regime in ("UP", "SIDEWAYS_UP")
-        zone_ok   = bool(row["bull_zone"])
+        zone_ok = bool(row["bull_zone"])
     else:
         regime_ok = regime in ("DOWN", "SIDEWAYS_DOWN")
-        zone_ok   = bool(row["bear_zone"])
+        zone_ok = bool(row["bear_zone"])
 
     return 1.0 if (regime_ok and zone_ok) else (0.5 if (regime_ok or zone_ok) else 0.0)
 
@@ -135,8 +138,9 @@ def _rsi_score_at(rsi_df: pd.DataFrame, bar_idx: int, kind: str) -> float:
 def _pivot_highs(df: pd.DataFrame, n: int) -> list[tuple[int, float]]:
     highs, out = df["high"].values, []
     for i in range(n, len(highs) - n):
-        if all(highs[i] > highs[i-j] for j in range(1, n+1)) and \
-           all(highs[i] > highs[i+j] for j in range(1, n+1)):
+        if all(highs[i] > highs[i - j] for j in range(1, n + 1)) and all(
+            highs[i] > highs[i + j] for j in range(1, n + 1)
+        ):
             out.append((i, highs[i]))
     return out
 
@@ -144,16 +148,19 @@ def _pivot_highs(df: pd.DataFrame, n: int) -> list[tuple[int, float]]:
 def _pivot_lows(df: pd.DataFrame, n: int) -> list[tuple[int, float]]:
     lows, out = df["low"].values, []
     for i in range(n, len(lows) - n):
-        if all(lows[i] < lows[i-j] for j in range(1, n+1)) and \
-           all(lows[i] < lows[i+j] for j in range(1, n+1)):
+        if all(lows[i] < lows[i - j] for j in range(1, n + 1)) and all(
+            lows[i] < lows[i + j] for j in range(1, n + 1)
+        ):
             out.append((i, lows[i]))
     return out
 
 
 # ── structural swing validation ──────────────────────────────────────────────
 def _is_structural_high(
-    bar_idx: int, high_price: float,
-    df: pd.DataFrame, lows: list[tuple[int, float]],
+    bar_idx: int,
+    high_price: float,
+    df: pd.DataFrame,
+    lows: list[tuple[int, float]],
     confirm_bars: int,
 ) -> bool:
     """
@@ -173,8 +180,10 @@ def _is_structural_high(
 
 
 def _is_structural_low(
-    bar_idx: int, low_price: float,
-    df: pd.DataFrame, highs: list[tuple[int, float]],
+    bar_idx: int,
+    low_price: float,
+    df: pd.DataFrame,
+    highs: list[tuple[int, float]],
     confirm_bars: int,
 ) -> bool:
     """
@@ -197,8 +206,7 @@ def _recency_weight(bar_idx: int, total: int, half_life: int) -> float:
     return math.exp(-age * math.log(2) / max(half_life, 1))
 
 
-def _wick_score(df: pd.DataFrame, bar_idx: int, kind: str,
-                threshold: float, bonus: float) -> float:
+def _wick_score(df: pd.DataFrame, bar_idx: int, kind: str, threshold: float, bonus: float) -> float:
     row = df.iloc[bar_idx]
     bar_range = row["high"] - row["low"]
     if bar_range <= 0:
@@ -226,14 +234,14 @@ def _detect_flips(
     for cl in clusters:
         if cl.kind == "resistance" and current_price > cl.price:
             # check if any close after last_bar actually crossed above
-            post = closes[cl.last_bar:]
+            post = closes[cl.last_bar :]
             if len(post) and post.max() > cl.price:
-                cl.kind    = "support"
+                cl.kind = "support"
                 cl.flipped = True
         elif cl.kind == "support" and current_price < cl.price:
-            post = closes[cl.last_bar:]
+            post = closes[cl.last_bar :]
             if len(post) and post.min() < cl.price:
-                cl.kind    = "resistance"
+                cl.kind = "resistance"
                 cl.flipped = True
 
 
@@ -249,55 +257,67 @@ def compute_sr(df: pd.DataFrame, params: dict | None = None) -> dict:
         zones:  list of dicts with keys:
             kind, low, high, score, structural, flipped
     """
-    p   = {**_DEFAULT_PARAMS, **(params or {})}
-    n   = p["fractal_n"]
+    p = {**_DEFAULT_PARAMS, **(params or {})}
+    n = p["fractal_n"]
     tol = p["cluster_tol"]
-    hl  = p["recency_half"]
+    hl = p["recency_half"]
     total = len(df)
 
     if total < max(2 * n + 5, p["rsi_wma_slow"] + 10):
         return {"levels": [], "zones": []}
 
-    atr_val       = float(atr(df, p["atr_period"]).iloc[-1])
+    atr_val = float(atr(df, p["atr_period"]).iloc[-1])
     cluster_width = tol * atr_val
     current_price = float(df["close"].iloc[-1])
 
     # ── Hayden RSI ───────────────────────────────────────────────────────────
     rsi_df = _hayden_rsi(
         df["close"],
-        p["rsi_period"], p["rsi_ema_fast"], p["rsi_wma_slow"],
+        p["rsi_period"],
+        p["rsi_ema_fast"],
+        p["rsi_wma_slow"],
     )
 
     # ── raw pivots ───────────────────────────────────────────────────────────
     raw_highs = _pivot_highs(df, n)
-    raw_lows  = _pivot_lows(df, n)
+    raw_lows = _pivot_lows(df, n)
 
     pivots: list[_Level] = []
 
     for idx, price in raw_highs:
         structural = _is_structural_high(idx, price, df, raw_lows, p["confirm_bars"])
-        w          = _recency_weight(idx, total, hl)
-        kind       = "resistance" if price > current_price else "support"
-        wick       = _wick_score(df, idx, kind, p["wick_threshold"], p["wick_bonus"])
-        rsi_bonus  = _rsi_score_at(rsi_df, idx, kind) * p["rsi_score_bonus"]
+        w = _recency_weight(idx, total, hl)
+        kind = "resistance" if price > current_price else "support"
+        wick = _wick_score(df, idx, kind, p["wick_threshold"], p["wick_bonus"])
+        rsi_bonus = _rsi_score_at(rsi_df, idx, kind) * p["rsi_score_bonus"]
         # structural swings get a score multiplier
-        score      = (w + wick + rsi_bonus) * (1.5 if structural else 1.0)
-        pivots.append(_Level(
-            price=price, kind=kind, last_bar=idx,
-            scores=[score], structural=structural,
-        ))
+        score = (w + wick + rsi_bonus) * (1.5 if structural else 1.0)
+        pivots.append(
+            _Level(
+                price=price,
+                kind=kind,
+                last_bar=idx,
+                scores=[score],
+                structural=structural,
+            )
+        )
 
     for idx, price in raw_lows:
         structural = _is_structural_low(idx, price, df, raw_highs, p["confirm_bars"])
-        w          = _recency_weight(idx, total, hl)
-        kind       = "support" if price < current_price else "resistance"
-        wick       = _wick_score(df, idx, kind, p["wick_threshold"], p["wick_bonus"])
-        rsi_bonus  = _rsi_score_at(rsi_df, idx, kind) * p["rsi_score_bonus"]
-        score      = (w + wick + rsi_bonus) * (1.5 if structural else 1.0)
-        pivots.append(_Level(
-            price=price, kind=kind, last_bar=idx,
-            scores=[score], structural=structural,
-        ))
+        w = _recency_weight(idx, total, hl)
+        kind = "support" if price < current_price else "resistance"
+        wick = _wick_score(df, idx, kind, p["wick_threshold"], p["wick_bonus"])
+        rsi_bonus = _rsi_score_at(rsi_df, idx, kind) * p["rsi_score_bonus"]
+        score = (w + wick + rsi_bonus) * (1.5 if structural else 1.0)
+        pivots.append(
+            _Level(
+                price=price,
+                kind=kind,
+                last_bar=idx,
+                scores=[score],
+                structural=structural,
+            )
+        )
 
     if not pivots:
         return {"levels": [], "zones": []}
@@ -309,22 +329,27 @@ def compute_sr(df: pd.DataFrame, params: dict | None = None) -> dict:
         merged = False
         for cl in reversed(clusters):
             if abs(cl.price - pv.price) <= cluster_width:
-                w_cl   = sum(cl.scores)
-                w_pv   = sum(pv.scores)
-                tot    = w_cl + w_pv
-                cl.price      = (cl.price * w_cl + pv.price * w_pv) / tot
-                cl.touches    += pv.touches
-                cl.last_bar   = max(cl.last_bar, pv.last_bar)
+                w_cl = sum(cl.scores)
+                w_pv = sum(pv.scores)
+                tot = w_cl + w_pv
+                cl.price = (cl.price * w_cl + pv.price * w_pv) / tot
+                cl.touches += pv.touches
+                cl.last_bar = max(cl.last_bar, pv.last_bar)
                 cl.scores.extend(pv.scores)
                 cl.structural = cl.structural or pv.structural
                 merged = True
                 break
         if not merged:
-            clusters.append(_Level(
-                price=pv.price, kind=pv.kind,
-                touches=pv.touches, last_bar=pv.last_bar,
-                scores=list(pv.scores), structural=pv.structural,
-            ))
+            clusters.append(
+                _Level(
+                    price=pv.price,
+                    kind=pv.kind,
+                    touches=pv.touches,
+                    last_bar=pv.last_bar,
+                    scores=list(pv.scores),
+                    structural=pv.structural,
+                )
+            )
 
     # ── BOS / flip ───────────────────────────────────────────────────────────
     _detect_flips(clusters, df, current_price)
@@ -341,28 +366,69 @@ def compute_sr(df: pd.DataFrame, params: dict | None = None) -> dict:
     levels, zones = [], []
 
     for cl in clusters:
-        bar_idx  = min(cl.last_bar, len(timestamps) - 1)
-        last_ts  = str(timestamps[bar_idx])
-        regime   = str(rsi_df["regime"].iloc[bar_idx])
-        band     = max(cluster_width, atr_val * 0.1)
+        bar_idx = min(cl.last_bar, len(timestamps) - 1)
+        last_ts = str(timestamps[bar_idx])
+        regime = str(rsi_df["regime"].iloc[bar_idx])
+        band = max(cluster_width, atr_val * 0.1)
 
-        levels.append({
-            "price":        round(cl.price, 2),
-            "kind":         cl.kind,
-            "score":        _score(cl),
-            "touches":      cl.touches,
-            "last_touched": last_ts,
-            "structural":   cl.structural,   # ← NEW: LL/HH confirmed
-            "flipped":      cl.flipped,      # ← NEW: BOS role swap
-            "rsi_regime":   regime,          # ← NEW: Hayden regime at touch
-        })
-        zones.append({
-            "kind":       cl.kind,
-            "low":        round(cl.price - band / 2, 2),
-            "high":       round(cl.price + band / 2, 2),
-            "score":      _score(cl),
-            "structural": cl.structural,
-            "flipped":    cl.flipped,
-        })
+        levels.append(
+            {
+                "price": round(cl.price, 2),
+                "kind": cl.kind,
+                "score": _score(cl),
+                "touches": cl.touches,
+                "last_touched": last_ts,
+                "structural": cl.structural,  # ← NEW: LL/HH confirmed
+                "flipped": cl.flipped,  # ← NEW: BOS role swap
+                "rsi_regime": regime,  # ← NEW: Hayden regime at touch
+            }
+        )
+        zones.append(
+            {
+                "kind": cl.kind,
+                "low": round(cl.price - band / 2, 2),
+                "high": round(cl.price + band / 2, 2),
+                "score": _score(cl),
+                "structural": cl.structural,
+                "flipped": cl.flipped,
+            }
+        )
 
     return {"levels": levels, "zones": zones}
+
+
+if __name__ == "__main__":
+    import os
+    import pandas as pd
+
+    # Tìm file dữ liệu mẫu
+    sample_file = "data/BTCUSDT_15m.parquet"
+    if not os.path.exists(sample_file):
+        sample_file = "data/sample_ohlcv.csv"
+
+    if os.path.exists(sample_file):
+        print(f"--- Đang đọc dữ liệu: {sample_file} ---")
+        if sample_file.endswith(".parquet"):
+            df = pd.read_parquet(sample_file)
+        else:
+            df = pd.read_csv(sample_file, index_col=0, parse_dates=True)
+
+        print("--- Đang tính toán S/R (Hayden RSI + Structural Swings) ---")
+        results = compute_sr(df)
+
+        print(f"\nTìm thấy {len(results['levels'])} mức S/R quan trọng nhất:")
+        print("-" * 85)
+        print(
+            f"{'Loại':<12} | {'Giá':<10} | {'Điểm':<8} | {'Chạm':<6} | {'Structural'} | {'Flipped'}"
+        )
+        print("-" * 85)
+        for lvl in results["levels"][:10]:
+            struct = "Có" if lvl["structural"] else "Không"
+            flip = "Có" if lvl["flipped"] else "Không"
+            print(
+                f"{lvl['kind'].upper():<12} | {lvl['price']:<10.2f} | {lvl['score']:<8.2f} | {lvl['touches']:<6} | {struct:<10} | {flip}"
+            )
+        print("-" * 85)
+    else:
+        print("Lỗi: Không tìm thấy file dữ liệu mẫu trong thư mục data/.")
+        print("Vui lòng đảm bảo bạn đang đứng ở thư mục gốc /trade-agent/")

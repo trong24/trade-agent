@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trade-Agent | Strategy Dashboard</title>
+    <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="logo">
+                <span class="icon">📈</span>
+                <h1>Trade-Agent <span>Analytics</span></h1>
+            </div>
+            <div class="header-controls">
+                <div class="status-badge" id="conn-status">Connected</div>
+            </div>
+        </header>
+
+        <main class="app-content">
+            <aside class="sidebar">
+                <section class="config-section">
+                    <h3>Backtest Config</h3>
+                    <div class="control-group">
+                        <label>Symbol</label>
+                        <input type="text" id="symbol" value="BTCUSDT">
+                    </div>
+                    <div class="control-group">
+                        <label>Interval</label>
+                        <select id="interval">
+                            <option value="15m">15m</option>
+                            <option value="1h" selected>1h</option>
+                            <option value="4h">4h</option>
+                            <option value="1d">1d</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Strategy</label>
+                        <select id="strategy">
+                            <option value="plan_v1" selected>Plan V1 (Standard)</option>
+                            <option value="sr_trend_v1">SR Trend (Vectorized)</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Start Date</label>
+                        <input type="date" id="start-date" value="2025-01-01">
+                    </div>
+                    <button id="run-btn" class="primary-btn">Run Analysis</button>
+                </section>
+
+                <section class="metrics-section" id="metrics-card">
+                    <h3>Performance</h3>
+                    <div class="metrics-grid">
+                        <div class="metric">
+                            <label>Total Return</label>
+                            <span id="metric-roi" class="value positive">0.00%</span>
+                        </div>
+                        <div class="metric">
+                            <label>Win Rate</label>
+                            <span id="metric-winrate" class="value">0.0%</span>
+                        </div>
+                        <div class="metric">
+                            <label>Trades</label>
+                            <span id="metric-trades" class="value">0</span>
+                        </div>
+                        <div class="metric">
+                            <label>Max Drawdown</label>
+                            <span id="metric-dd" class="value negative">0.00%</span>
+                        </div>
+                    </div>
+                </section>
+            </aside>
+
+            <div class="chart-container">
+                <div id="chart"></div>
+                <div id="rsi-chart"></div>
+                <div id="loading-overlay" class="hidden">
+                    <div class="spinner"></div>
+                    <p>Computing Strategy Results...</p>
+                </div>
+            </div>
+
+            <section class="trades-section">
+                <header class="section-header">
+                    <h3>Trade History</h3>
+                    <button id="export-btn" class="secondary-btn">Export CSV</button>
+                </header>
+                <div class="table-wrapper">
+                    <table id="trades-table">
+                        <thead>
+                            <tr>
+                                <th>Entry Time</th>
+                                <th>Exit Time</th>
+                                <th>Side</th>
+                                <th>Entry Price</th>
+                                <th>Exit Price</th>
+                                <th>PnL %</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Trades will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="app.js?v=3" defer></script>
+</body>
+
+</html>

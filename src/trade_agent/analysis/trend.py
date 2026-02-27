@@ -1,4 +1,5 @@
 """Trend detection: EMA crossover + slope + ATR band."""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -7,11 +8,11 @@ from .indicators import atr, ema
 
 
 _DEFAULT_PARAMS = {
-    "ema_fast":   20,
-    "ema_slow":   50,
+    "ema_fast": 20,
+    "ema_slow": 50,
     "atr_period": 14,
-    "sideway_atr_mult": 0.5,   # range < mult*ATR → sideway
-    "slope_bars": 5,            # bars over which to measure ema_slow slope
+    "sideway_atr_mult": 0.5,  # range < mult*ATR → sideway
+    "slope_bars": 5,  # bars over which to measure ema_slow slope
 }
 
 
@@ -68,12 +69,12 @@ def compute_trend(df: pd.DataFrame, params: dict | None = None) -> dict:
         strength = min(1.0, ema_gap / (2 * a)) if a > 0 else 0.5
 
     return {
-        "trend_dir":      trend_dir,
+        "trend_dir": trend_dir,
         "trend_strength": round(strength, 4),
-        "ema_fast":       round(f, 4),
-        "ema_slow":       round(s, 4),
+        "ema_fast": round(f, 4),
+        "ema_slow": round(s, 4),
         "ema_slow_slope": round(slope_pct, 6),
-        "atr_pct":        round(atr_pct, 4),
-        "dist_to_slow":   round(dist, 4),
-        "is_sideway":     is_sideway,
+        "atr_pct": round(atr_pct, 4),
+        "dist_to_slow": round(dist, 4),
+        "is_sideway": is_sideway,
     }

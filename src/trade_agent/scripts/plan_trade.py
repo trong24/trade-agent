@@ -6,6 +6,7 @@ Usage:
     plan-trade --explain               # with evidence lines
     plan-trade --json --explain        # JSON with evidence embedded
 """
+
 from __future__ import annotations
 
 import argparse
@@ -33,16 +34,14 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Generate trade plan from latest market facts",
     )
-    p.add_argument("--db",      default="data/trade.duckdb")
-    p.add_argument("--symbol",  default="BTCUSDT")
+    p.add_argument("--db", default="data/trade.duckdb")
+    p.add_argument("--symbol", default="BTCUSDT")
     p.add_argument("--version", default="v1")
-    p.add_argument("--json",    action="store_true", dest="json_mode",
-                   help="Output raw JSON")
-    p.add_argument("--explain", action="store_true",
-                   help="Include evidence lines")
+    p.add_argument("--json", action="store_true", dest="json_mode", help="Output raw JSON")
+    p.add_argument("--explain", action="store_true", help="Include evidence lines")
     p.add_argument("--atr-stop-mult", type=float, default=1.5)
-    p.add_argument("--min-rr",        type=float, default=2.0)
-    p.add_argument("--time-stop",     type=int,   default=20)
+    p.add_argument("--min-rr", type=float, default=2.0)
+    p.add_argument("--time-stop", type=int, default=20)
     return p
 
 
@@ -64,8 +63,8 @@ def main() -> None:
         sys.exit(1)
 
     risk_params = {
-        "atr_stop_mult":  args.atr_stop_mult,
-        "min_rr":         args.min_rr,
+        "atr_stop_mult": args.atr_stop_mult,
+        "min_rr": args.min_rr,
         "time_stop_bars": args.time_stop,
     }
     plan = build_plan(facts, risk_params=risk_params)
@@ -83,10 +82,7 @@ def main() -> None:
         return
 
     # ── Rich table mode ────────────────────────────────────────────────────
-    console.print(
-        f"\n[bold cyan]{plan['symbol']}[/] Trade Plan — "
-        f"{plan.get('as_of', '?')}"
-    )
+    console.print(f"\n[bold cyan]{plan['symbol']}[/] Trade Plan — {plan.get('as_of', '?')}")
     console.print(
         f"Price: [bold]{plan['current_price']:,.2f}[/]  "
         f"Regime: [bold]{plan['regime']}[/]  "
@@ -95,7 +91,6 @@ def main() -> None:
     )
     if plan.get("no_trade_flag"):
         console.print("  [bold red]⛔ NO TRADE — score too low, skip this setup[/]")
-
 
     # Scenarios
     tbl = Table(title="Scenarios", show_header=True)
@@ -116,9 +111,7 @@ def main() -> None:
     # Entry rules
     for e in plan.get("entry_rules", []):
         color = "green" if e["type"] == "long" else "red" if e["type"] == "short" else "yellow"
-        console.print(
-            f"  [{color}]ENTRY ({e['type']})[/]: {e['trigger']}"
-        )
+        console.print(f"  [{color}]ENTRY ({e['type']})[/]: {e['trigger']}")
         console.print(f"    Condition: {e['condition']}")
 
     # Stop
@@ -152,11 +145,13 @@ def main() -> None:
     # Evidence
     if evidence:
         console.print()
-        console.print(Panel(
-            "\n".join(evidence),
-            title="Evidence",
-            border_style="dim",
-        ))
+        console.print(
+            Panel(
+                "\n".join(evidence),
+                title="Evidence",
+                border_style="dim",
+            )
+        )
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 """trade-agent CLI: run backtests from Binance Futures Parquet data."""
+
 from __future__ import annotations
 
 import argparse
@@ -23,17 +24,17 @@ Examples:
     )
 
     # ── Data source ────────────────────────────────────────────────────────────
-    parser.add_argument("--symbol",   required=True,  metavar="BTCUSDT", help="Symbol to load")
-    parser.add_argument("--interval", default="1h",   help="Candle interval: 15m 1h 4h 1d")
-    parser.add_argument("--start",    default=None,   help="Start date ISO (default: all stored)")
-    parser.add_argument("--end",      default=None,   help="End date ISO (default: all stored)")
+    parser.add_argument("--symbol", required=True, metavar="BTCUSDT", help="Symbol to load")
+    parser.add_argument("--interval", default="1h", help="Candle interval: 15m 1h 4h 1d")
+    parser.add_argument("--start", default=None, help="Start date ISO (default: all stored)")
+    parser.add_argument("--end", default=None, help="End date ISO (default: all stored)")
     parser.add_argument("--data-dir", default="data", help="Parquet store root (default: data/)")
 
     # ── Strategy ───────────────────────────────────────────────────────────────
-    parser.add_argument("--short",        type=int,   default=20)
-    parser.add_argument("--long",         type=int,   default=50)
-    parser.add_argument("--risk",         type=float, default=0.2)
-    parser.add_argument("--fee-bps",      type=float, default=6.0)
+    parser.add_argument("--short", type=int, default=20)
+    parser.add_argument("--long", type=int, default=50)
+    parser.add_argument("--risk", type=float, default=0.2)
+    parser.add_argument("--fee-bps", type=float, default=6.0)
     parser.add_argument("--initial-cash", type=float, default=10_000.0)
 
     return parser
@@ -56,9 +57,9 @@ def main() -> None:
 
     # ── Build backtest ─────────────────────────────────────────────────────────
     strategy = SMACrossStrategy(short_window=args.short, long_window=args.long)
-    broker   = PaperBroker(initial_cash=args.initial_cash, fee_bps=args.fee_bps)
-    risk     = FixedFractionRisk(max_fraction=args.risk)
-    result   = BacktestEngine(candles, strategy, broker, risk).run()
+    broker = PaperBroker(initial_cash=args.initial_cash, fee_bps=args.fee_bps)
+    risk = FixedFractionRisk(max_fraction=args.risk)
+    result = BacktestEngine(candles, strategy, broker, risk).run()
 
     # ── Report ─────────────────────────────────────────────────────────────────
     source = f"{args.symbol} {args.interval}" if args.symbol else args.csv

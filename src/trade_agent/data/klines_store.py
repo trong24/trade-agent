@@ -33,6 +33,7 @@ def _to_utc_ts(value: str | datetime | pd.Timestamp) -> pd.Timestamp:
         return ts.tz_localize("UTC")
     return ts.tz_convert("UTC")
 
+
 # ── Supported intervals ───────────────────────────────────────────────────────
 SUPPORTED_INTERVALS: list[str] = ["15m", "1h", "4h", "1d", "1w", "1M"]
 

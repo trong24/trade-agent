@@ -2,6 +2,7 @@
 
 v2: macro/micro level merge, bias chain, regime classification.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -40,13 +41,15 @@ def _merge_levels(per_tf_facts: dict, max_levels: int = 5) -> list[dict]:
         sr = tf_data.get("sr", {})
         weight = MACRO_WEIGHT.get(tf, 1.0)
         for lv in sr.get("levels", []):
-            all_levels.append({
-                "price":    lv["price"],
-                "kind":     lv["kind"],
-                "score":    round(lv.get("score", 0) * weight, 4),
-                "touches":  lv.get("touches", 0),
-                "source_tf": tf,
-            })
+            all_levels.append(
+                {
+                    "price": lv["price"],
+                    "kind": lv["kind"],
+                    "score": round(lv.get("score", 0) * weight, 4),
+                    "touches": lv.get("touches", 0),
+                    "source_tf": tf,
+                }
+            )
 
     # Sort by weighted score desc
     all_levels.sort(key=lambda x: x["score"], reverse=True)
@@ -54,10 +57,7 @@ def _merge_levels(per_tf_facts: dict, max_levels: int = 5) -> list[dict]:
     # Dedup within 1% proximity
     merged: list[dict] = []
     for lv in all_levels:
-        too_close = any(
-            abs(lv["price"] - m["price"]) / max(m["price"], 1) < 0.01
-            for m in merged
-        )
+        too_close = any(abs(lv["price"] - m["price"]) / max(m["price"], 1) < 0.01 for m in merged)
         if not too_close:
             merged.append(lv)
         if len(merged) >= max_levels:
@@ -96,10 +96,10 @@ def build_payload(
         trend = per_tf_facts.get(tf, {}).get("trend", {})
         if trend:
             trends[tf] = {
-                "dir":      trend.get("trend_dir"),
+                "dir": trend.get("trend_dir"),
                 "strength": trend.get("trend_strength"),
-                "atr_pct":  trend.get("atr_pct"),
-                "sideway":  trend.get("is_sideway"),
+                "atr_pct": trend.get("atr_pct"),
+                "sideway": trend.get("is_sideway"),
             }
 
     # Key levels (macro/micro merged)
@@ -107,13 +107,20 @@ def build_payload(
 
     # Invalidation
     supports_below = sorted(
-        [lv for lv in key_levels if lv["kind"] == "support"
-         and current_price and lv["price"] < current_price],
-        key=lambda x: x["price"], reverse=True,
+        [
+            lv
+            for lv in key_levels
+            if lv["kind"] == "support" and current_price and lv["price"] < current_price
+        ],
+        key=lambda x: x["price"],
+        reverse=True,
     )
     resistances_above = sorted(
-        [lv for lv in key_levels if lv["kind"] == "resistance"
-         and current_price and lv["price"] > current_price],
+        [
+            lv
+            for lv in key_levels
+            if lv["kind"] == "resistance" and current_price and lv["price"] > current_price
+        ],
         key=lambda x: x["price"],
     )
 
@@ -123,12 +130,12 @@ def build_payload(
     }
 
     return {
-        "symbol":       symbol,
-        "as_of":        as_of.isoformat(),
-        "regime":       regime,
-        "bias_chain":   bias_chain,
-        "trends":       trends,
-        "key_levels":   key_levels,
+        "symbol": symbol,
+        "as_of": as_of.isoformat(),
+        "regime": regime,
+        "bias_chain": bias_chain,
+        "trends": trends,
+        "key_levels": key_levels,
         "invalidation": invalidation,
-        "timeframes":   per_tf_facts,
+        "timeframes": per_tf_facts,
     }

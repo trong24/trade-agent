@@ -4,6 +4,7 @@ Usage:
     run-experiments --start 2025-01-01 --interval 1h
     run-experiments --start 2025-01-01 --interval 1h --top 10
 """
+
 from __future__ import annotations
 
 import argparse
@@ -35,7 +36,7 @@ logging.basicConfig(
 # ── Default parameter grid ─────────────────────────────────────────────────
 DEFAULT_GRID = {
     "zone_mult": [0.5, 1.0, 1.5, 2.0, 3.0],
-    "fee_bps":   [1.0, 2.0, 4.0],
+    "fee_bps": [1.0, 2.0, 4.0],
 }
 
 
@@ -50,18 +51,16 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Grid-search param combos and rank by Sharpe/return",
     )
-    p.add_argument("--db",            default="data/trade.duckdb")
-    p.add_argument("--symbol",        default="BTCUSDT")
-    p.add_argument("--interval",      default="1h")
-    p.add_argument("--start",         required=True)
-    p.add_argument("--end",           default=None)
+    p.add_argument("--db", default="data/trade.duckdb")
+    p.add_argument("--symbol", default="BTCUSDT")
+    p.add_argument("--interval", default="1h")
+    p.add_argument("--start", required=True)
+    p.add_argument("--end", default=None)
     p.add_argument("--facts-version", default="v1")
-    p.add_argument("--strategy",      default="sr_trend_v1")
-    p.add_argument("--top",           type=int, default=20,
-                   help="Show top N results (default: 20)")
-    p.add_argument("--save",          action="store_true",
-                   help="Save all runs to backtest_runs")
-    p.add_argument("--json",          action="store_true", dest="json_mode")
+    p.add_argument("--strategy", default="sr_trend_v1")
+    p.add_argument("--top", type=int, default=20, help="Show top N results (default: 20)")
+    p.add_argument("--save", action="store_true", help="Save all runs to backtest_runs")
+    p.add_argument("--json", action="store_true", dest="json_mode")
     return p
 
 
@@ -102,7 +101,9 @@ def main() -> None:
         fb = combo.get("fee_bps", 2.0)
 
         signals = generate_signals(
-            df, facts, interval=args.interval,
+            df,
+            facts,
+            interval=args.interval,
             params={"zone_mult": zm},
         )
         metrics = run_vectorized_backtest(df, signals, fee_bps=fb)
@@ -113,9 +114,12 @@ def main() -> None:
         if args.save:
             run_id = str(uuid.uuid4())
             insert_backtest_run(
-                con, run_id=run_id,
-                symbol=args.symbol, interval=args.interval,
-                start_time=start_dt, end_time=end_dt,
+                con,
+                run_id=run_id,
+                symbol=args.symbol,
+                interval=args.interval,
+                start_time=start_dt,
+                end_time=end_dt,
                 strategy_id=args.strategy,
                 params=combo,
                 facts_version=args.facts_version,
@@ -126,10 +130,11 @@ def main() -> None:
 
     # Sort by Sharpe descending
     results.sort(key=lambda r: r.get("sharpe", 0), reverse=True)
-    top = results[:args.top]
+    top = results[: args.top]
 
     if args.json_mode:
         import sys
+
         json.dump(top, sys.stdout, indent=2)
         sys.stdout.write("\n")
         return

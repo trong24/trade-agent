@@ -10,14 +10,15 @@ Usage:
   chain = compute_bias_chain(per_tf_facts)
   # chain["1h"] → {"bias": "short", "from_tf": "4h", "macro": "down"}
 """
+
 from __future__ import annotations
 
 
 # Entry TF → which TF provides directional bias
 BIAS_MAP: dict[str, str] = {
     "15m": "1h",
-    "1h":  "4h",
-    "4h":  "1d",
+    "1h": "4h",
+    "4h": "1d",
 }
 
 # Timeframes that provide macro context (override if strong)
@@ -82,9 +83,9 @@ def compute_bias_chain(per_tf_facts: dict) -> dict:
             confidence = "low"  # bias and macro conflict
 
         chain[entry_tf] = {
-            "bias":       effective_bias,
-            "from_tf":    bias_tf,
-            "macro":      macro,
+            "bias": effective_bias,
+            "from_tf": bias_tf,
+            "macro": macro,
             "confidence": confidence,
         }
 

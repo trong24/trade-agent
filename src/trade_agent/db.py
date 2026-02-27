@@ -3,6 +3,7 @@
 Source of truth for all klines, market facts, and backtest runs.
 File: data/trade.duckdb (default)
 """
+
 from __future__ import annotations
 
 import json
@@ -166,10 +167,13 @@ def upsert_market_facts(
     version: str = "v1",
 ) -> None:
     """Upsert a market_facts row."""
-    con.execute("""
+    con.execute(
+        """
         INSERT OR REPLACE INTO market_facts (symbol, as_of, interval, facts_json, version)
         VALUES (?, ?, ?, ?, ?)
-    """, [symbol.upper(), as_of, interval, json.dumps(facts, default=str), version])
+    """,
+        [symbol.upper(), as_of, interval, json.dumps(facts, default=str), version],
+    )
 
 
 def read_latest_facts(
@@ -186,13 +190,16 @@ def read_latest_facts(
         time_filter = "AND as_of <= ?"
         params.append(as_of_max)
 
-    row = con.execute(f"""
+    row = con.execute(
+        f"""
         SELECT facts_json FROM market_facts
         WHERE symbol = ? AND interval = ? AND version = ?
         {time_filter}
         ORDER BY as_of DESC
         LIMIT 1
-    """, params).fetchone()
+    """,
+        params,
+    ).fetchone()
 
     return json.loads(row[0]) if row else None
 
@@ -211,20 +218,30 @@ def insert_backtest_run(
 ) -> None:
     """Store a backtest run record."""
     now = datetime.now(timezone.utc)
-    con.execute("""
+    con.execute(
+        """
         INSERT OR REPLACE INTO backtest_runs
             (run_id, symbol, interval, start_time, end_time,
              strategy_id, params_json, facts_version, metrics_json, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, [
-        run_id, symbol.upper(), interval,
-        start_time, end_time, strategy_id,
-        json.dumps(params), facts_version,
-        json.dumps(metrics), now,
-    ])
+    """,
+        [
+            run_id,
+            symbol.upper(),
+            interval,
+            start_time,
+            end_time,
+            strategy_id,
+            json.dumps(params),
+            facts_version,
+            json.dumps(metrics),
+            now,
+        ],
+    )
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _to_utc(value: str | datetime) -> datetime:
     if isinstance(value, str):
@@ -239,16 +256,16 @@ def _to_utc(value: str | datetime) -> datetime:
 def _prepare_candles_df(df: pd.DataFrame) -> pd.DataFrame:
     """Normalize a raw klines DataFrame to match the candles schema."""
     out = pd.DataFrame()
-    out["symbol"]          = df["symbol"]
-    out["interval"]        = df["interval"]
-    out["open_time"]       = pd.to_datetime(df["open_time"], utc=True)
-    out["close_time"]      = pd.to_datetime(df["close_time"], utc=True)
-    out["open"]            = df["open"].astype("float64")
-    out["high"]            = df["high"].astype("float64")
-    out["low"]             = df["low"].astype("float64")
-    out["close"]           = df["close"].astype("float64")
-    out["volume"]          = df["volume"].astype("float64")
-    out["trades"]          = df.get("trades", pd.Series(dtype="Int64")).astype("Int64")
-    out["taker_buy_base"]  = df.get("taker_buy_base",  pd.Series(dtype="float64"))
+    out["symbol"] = df["symbol"]
+    out["interval"] = df["interval"]
+    out["open_time"] = pd.to_datetime(df["open_time"], utc=True)
+    out["close_time"] = pd.to_datetime(df["close_time"], utc=True)
+    out["open"] = df["open"].astype("float64")
+    out["high"] = df["high"].astype("float64")
+    out["low"] = df["low"].astype("float64")
+    out["close"] = df["close"].astype("float64")
+    out["volume"] = df["volume"].astype("float64")
+    out["trades"] = df.get("trades", pd.Series(dtype="Int64")).astype("Int64")
+    out["taker_buy_base"] = df.get("taker_buy_base", pd.Series(dtype="float64"))
     out["taker_buy_quote"] = df.get("taker_buy_quote", pd.Series(dtype="float64"))
     return out

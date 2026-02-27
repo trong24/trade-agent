@@ -5,6 +5,7 @@ Usage:
     analyze-market --intervals 1h,4h,1d,1w --lookback 500
     python -m trade_agent.scripts.analyze_market
 """
+
 from __future__ import annotations
 
 import argparse
@@ -40,15 +41,23 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Analyze BTCUSDT market structure and persist facts to DuckDB",
     )
-    p.add_argument("--db",        default="data/trade.duckdb")
-    p.add_argument("--symbol",    default="BTCUSDT")
-    p.add_argument("--intervals", default=_DEFAULT_INTERVALS,
-                   help="Comma-separated TFs to analyze (default: 1h,4h,1d,1w)")
-    p.add_argument("--lookback",  type=int, default=_DEFAULT_LOOKBACK,
-                   help="Max candles to use per TF (default: 1000)")
-    p.add_argument("--as-of",     default=None,
-                   help="ISO datetime for analysis snapshot (default: now UTC)")
-    p.add_argument("--version",   default="v1")
+    p.add_argument("--db", default="data/trade.duckdb")
+    p.add_argument("--symbol", default="BTCUSDT")
+    p.add_argument(
+        "--intervals",
+        default=_DEFAULT_INTERVALS,
+        help="Comma-separated TFs to analyze (default: 1h,4h,1d,1w)",
+    )
+    p.add_argument(
+        "--lookback",
+        type=int,
+        default=_DEFAULT_LOOKBACK,
+        help="Max candles to use per TF (default: 1000)",
+    )
+    p.add_argument(
+        "--as-of", default=None, help="ISO datetime for analysis snapshot (default: now UTC)"
+    )
+    p.add_argument("--version", default="v1")
     p.add_argument("-v", "--verbose", action="store_true")
     return p
 
@@ -78,37 +87,48 @@ def main() -> None:
             continue
 
         # Take last N bars
-        df = df.iloc[-args.lookback:]
+        df = df.iloc[-args.lookback :]
 
         trend_facts = compute_trend(df)
         sr_facts = compute_sr(df)
 
         per_tf_facts[interval] = {
             "trend": trend_facts,
-            "sr":    sr_facts,
+            "sr": sr_facts,
         }
 
         # Persist per-TF facts
         upsert_market_facts(
-            con, args.symbol, as_of, interval,
-            per_tf_facts[interval], version=args.version,
+            con,
+            args.symbol,
+            as_of,
+            interval,
+            per_tf_facts[interval],
+            version=args.version,
         )
 
         levels_count = len(sr_facts.get("levels", []))
-        summary_rows.append((
-            interval,
-            trend_facts["trend_dir"],
-            f"{trend_facts['trend_strength']:.3f}",
-            f"{trend_facts['atr_pct']:.2f}%",
-            str(len(df)),
-            str(levels_count),
-        ))
+        summary_rows.append(
+            (
+                interval,
+                trend_facts["trend_dir"],
+                f"{trend_facts['trend_strength']:.3f}",
+                f"{trend_facts['atr_pct']:.2f}%",
+                str(len(df)),
+                str(levels_count),
+            )
+        )
 
     # Build + persist ALL-timeframe payload
     if per_tf_facts:
         payload = build_payload(args.symbol, as_of, per_tf_facts)
         upsert_market_facts(
-            con, args.symbol, as_of, "ALL", payload, version=args.version,
+            con,
+            args.symbol,
+            as_of,
+            "ALL",
+            payload,
+            version=args.version,
         )
 
     con.close()
@@ -127,8 +147,7 @@ def main() -> None:
         payload = build_payload(args.symbol, as_of, per_tf_facts)
         inv = payload.get("invalidation", {})
         tbl.caption = (
-            f"Support below: {inv.get('support_below')}  |  "
-            f"Resistance above: {inv.get('resistance_above')}"
+            f"Support below: {inv.get('bear_below')}  |  Resistance above: {inv.get('bull_above')}"
         )
 
     console.print(tbl)

@@ -5,6 +5,7 @@ Usage:
     get-latest-facts --json                   # raw JSON to stdout
     get-latest-facts --json | jq .key_levels  # pipe to jq/LLM
 """
+
 from __future__ import annotations
 
 import argparse
@@ -29,11 +30,15 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Get latest market facts JSON for LLM reasoning",
     )
-    p.add_argument("--db",      default="data/trade.duckdb")
-    p.add_argument("--symbol",  default="BTCUSDT")
+    p.add_argument("--db", default="data/trade.duckdb")
+    p.add_argument("--symbol", default="BTCUSDT")
     p.add_argument("--version", default="v1")
-    p.add_argument("--json",    action="store_true", dest="json_mode",
-                   help="Output raw JSON to stdout (for piping)")
+    p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_mode",
+        help="Output raw JSON to stdout (for piping)",
+    )
     return p
 
 
@@ -48,8 +53,7 @@ def main() -> None:
 
     if facts is None:
         msg = (
-            f"No facts found for {args.symbol} (version={args.version}). "
-            "Run: analyze-market first."
+            f"No facts found for {args.symbol} (version={args.version}). Run: analyze-market first."
         )
         if args.json_mode:
             json.dump({"error": msg}, sys.stdout)
@@ -137,8 +141,7 @@ def main() -> None:
     bull = inv.get("bull_above")
     bear = inv.get("bear_below")
     console.print(
-        f"\nInvalidation: "
-        f"[red]bear below {bear:,.2f}[/]" if bear else "",
+        f"\nInvalidation: [red]bear below {bear:,.2f}[/]" if bear else "",
         end="",
     )
     if bull:
