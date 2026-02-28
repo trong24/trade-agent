@@ -2,7 +2,6 @@
  * Trade-Agent Dashboard Frontend
  * Uses Lightweight Charts v4 for data visualization.
  * Includes: Candlestick + Volume + RSI pane (EMA9, WMA45)
- * v10 – sync right price-scale width so both chart drawing areas match
  */
 
 // -- State --

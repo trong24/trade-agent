@@ -21,7 +21,7 @@ except ImportError:
     print("    Install them with: pip install fastapi uvicorn\n")
     raise SystemExit(1)
 
-from trade_agent.db import connect, init_db, read_candles
+from trade_agent.db import connect, init_db, read_candles, read_latest_facts
 from trade_agent.backtest.plan_strategy import run_plan_backtest
 from trade_agent.backtest.facts_strategy import generate_signals, run_vectorized_backtest
 from trade_agent.analysis.sr import _calc_rsi, _calc_wma
@@ -65,7 +65,8 @@ async def api_backtest(
         trade_log = result.get("trade_log", [])
     else:
         # Default vectorized
-        signals = generate_signals(df, facts=None, interval=interval)
+        facts = read_latest_facts(con, symbol, "ALL", version="v1")
+        signals = generate_signals(df, facts=facts, interval=interval)
         metrics = run_vectorized_backtest(df, signals, fee_bps=fee_bps)
         trade_log = []  # Vectorized strategy in facts_strategy doesn't return full log yet
 

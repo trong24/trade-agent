@@ -1,16 +1,4 @@
-"""Support & Resistance: structural swings (LL/HH confirm) + Hayden RSI filter.
-
-v3 changes vs v2:
-  - Structural swing validation: pivot high only valid if followed by LL
-    (pivot low only valid if followed by HH) — matches system definition
-  - Hayden RSI layer:
-      * EMA(9) / WMA(45) on RSI → trend regime (UP / DOWN / SIDEWAYS)
-      * RSI range check: 40–80 bull zone, 20–60 bear zone
-      * Simple divergence → trend confirmation (Hayden: NOT reversal signal)
-      * Swing score bonus when RSI agrees with price swing direction
-  - Flip zone logic: level whose BOS was broken → role swaps S↔R
-  - Output adds fields: structural, rsi_regime, rsi_score_bonus, flipped
-"""
+"""Support & Resistance: structural swings (LL/HH confirm) + Hayden RSI filter."""
 
 from __future__ import annotations
 

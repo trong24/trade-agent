@@ -14,11 +14,13 @@ from __future__ import annotations
 import pandas as pd
 
 
-def _get_bias(facts: dict, interval: str) -> str:
+def _get_bias(facts: dict | None, interval: str) -> str:
     """Get bias for an interval from facts payload's bias_chain.
 
     Falls back to htf_trend priority if bias_chain not present.
     """
+    if not facts:
+        return "neutral"
     chain = facts.get("bias_chain", {})
     if interval in chain:
         return chain[interval].get("bias", "neutral")
@@ -33,8 +35,10 @@ def _get_bias(facts: dict, interval: str) -> str:
     return "neutral"
 
 
-def _get_zones(facts: dict, kind: str) -> list[dict]:
+def _get_zones(facts: dict | None, kind: str) -> list[dict]:
     """Extract zones from key_levels or per-TF SR."""
+    if not facts:
+        return []
     return [lv for lv in facts.get("key_levels", []) if lv.get("kind") == kind]
 
 
@@ -51,7 +55,7 @@ def _price_near_zone(price: float, zones: list[dict], zone_mult: float = 1.5) ->
 
 def generate_signals(
     df: pd.DataFrame,
-    facts: dict,
+    facts: dict | None,
     interval: str = "1h",
     params: dict | None = None,
 ) -> pd.Series:
