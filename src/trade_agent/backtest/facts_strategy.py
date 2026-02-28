@@ -110,6 +110,7 @@ def run_vectorized_backtest(
     returns = df["close"].pct_change().fillna(0)
     pos = signals
 
+    # Strategy returns
     strategy_returns = pos * returns
     pos_change = pos.diff().abs().fillna(0)
     fees = pos_change * fee_rate
@@ -131,10 +132,48 @@ def run_vectorized_backtest(
 
     entries = ((pos != 0) & (pos.shift(1).fillna(0) == 0)).sum()
 
-    return {
+    # Generate trade log for dashboard compatibility
+    trade_log = []
+    current_trade = None
+    df_reset = df.reset_index()
+
+    for i in range(1, len(df_reset)):
+        prev_pos = pos.iloc[i - 1]
+        curr_pos = pos.iloc[i]
+
+        if curr_pos != prev_pos:
+            # Exit existing trade
+            if current_trade is not None:
+                exit_price = float(df_reset["close"].iloc[i])
+                entry_price = current_trade["entry_price"]
+                side_mult = 1 if current_trade["side"] == "long" else -1
+                
+                # PnL accounting for fees on entry AND exit
+                raw_pnl = (exit_price - entry_price) / entry_price * side_mult
+                net_pnl = raw_pnl - (fee_rate * 2) 
+
+                current_trade["exit"] = df_reset["open_time"].iloc[i].isoformat()
+                current_trade["exit_price"] = exit_price
+                current_trade["pnl_pct"] = net_pnl * 100
+                trade_log.append(current_trade)
+                current_trade = None
+
+            # Enter new trade
+            if curr_pos != 0:
+                side = "long" if curr_pos == 1 else "short"
+                current_trade = {
+                    "entry": df_reset["open_time"].iloc[i].isoformat(),
+                    "side": side,
+                    "entry_price": float(df_reset["close"].iloc[i]),
+                    "reason": "Signal Flip",
+                }
+
+    metrics = {
         "total_return_pct": round(total_return, 4),
         "max_drawdown_pct": round(max_dd, 4),
         "sharpe": round(sharpe, 4),
-        "trades": int(entries),
+        "trades": len(trade_log),
         "bars": len(df),
     }
+
+    return {"metrics": metrics, "trade_log": trade_log}

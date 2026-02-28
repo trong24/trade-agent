@@ -106,7 +106,8 @@ def main() -> None:
             interval=args.interval,
             params={"zone_mult": zm},
         )
-        metrics = run_vectorized_backtest(df, signals, fee_bps=fb)
+        result = run_vectorized_backtest(df, signals, fee_bps=fb)
+        metrics = result["metrics"]
         metrics["zone_mult"] = zm
         metrics["fee_bps"] = fb
         results.append(metrics)

@@ -22,7 +22,6 @@ except ImportError:
     raise SystemExit(1)
 
 from trade_agent.db import connect, init_db, read_candles, read_latest_facts
-from trade_agent.backtest.plan_strategy import run_plan_backtest
 from trade_agent.backtest.facts_strategy import generate_signals, run_vectorized_backtest
 from trade_agent.analysis.sr import _calc_rsi, _calc_wma
 
@@ -38,7 +37,7 @@ WEB_DIR = Path(__file__).parent.parent / "web"
 async def api_backtest(
     symbol: str = "BTCUSDT",
     interval: str = "1h",
-    strategy: str = "plan_v1",
+    strategy: str = "sr_trend_v1",
     start: str = "2025-01-01",
     end: str | None = None,
     fee_bps: float = 2.0,
@@ -58,17 +57,12 @@ async def api_backtest(
     if df.empty:
         return {"error": "No data found for the given range."}
 
-    # Run strategy
-    if strategy == "plan_v1":
-        result = run_plan_backtest(df, fee_bps=fee_bps)
-        metrics = result["metrics"]
-        trade_log = result.get("trade_log", [])
-    else:
-        # Default vectorized
-        facts = read_latest_facts(con, symbol, "ALL", version="v1")
-        signals = generate_signals(df, facts=facts, interval=interval)
-        metrics = run_vectorized_backtest(df, signals, fee_bps=fee_bps)
-        trade_log = []  # Vectorized strategy in facts_strategy doesn't return full log yet
+    # Run strategy (vectorized)
+    facts = read_latest_facts(con, symbol, "ALL", version="v1")
+    signals = generate_signals(df, facts=facts, interval=interval)
+    result = run_vectorized_backtest(df, signals, fee_bps=fee_bps)
+    metrics = result["metrics"]
+    trade_log = result.get("trade_log", [])
 
     # Prepare candle data for frontend
     # JSON doesn't handle pandas index well, so we reset_index and convert to list of dicts
