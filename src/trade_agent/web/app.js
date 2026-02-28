@@ -2,6 +2,7 @@
  * Trade-Agent Dashboard Frontend
  * Uses Lightweight Charts v4 for data visualization.
  * Includes: Candlestick + Volume + RSI pane (EMA9, WMA45)
+ * v10 – sync right price-scale width so both chart drawing areas match
  */
 
 // -- State --
@@ -39,7 +40,10 @@ function init() {
     });
     volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
 
-    // ── RSI chart ────────────────────────────────────────────────
+    // ── RSI chart (slave – identical time domain to price chart) ──
+    // By padding RSI data to cover all candle timestamps (warmup bars get the
+    // first valid value), both charts always have the same number of bars →
+    // identical bar widths → perfect pixel alignment on both edges forever.
     const rsiEl = document.getElementById('rsi-chart');
     rsiChart = cc(rsiEl, {
         ...theme,
@@ -49,48 +53,57 @@ function init() {
             borderColor: '#2b2f36',
             scaleMargins: { top: 0.05, bottom: 0.05 },
         },
+        // Hide the RSI time axis — driven entirely by the price chart scroll
+        timeScale: { ...theme.timeScale, visible: false },
+        // Disable all user interaction so only the price chart controls panning
+        handleScroll: false,
+        handleScale: false,
     });
 
     rsiSeries = rsiChart.addLineSeries({
-        color: '#e0e0e0',
-        lineWidth: 1.5,
-        title: 'RSI',
+        color: '#e0e0e0', lineWidth: 1.5, title: 'RSI',
         priceFormat: { type: 'custom', formatter: v => v.toFixed(1) },
     });
-
     emaLine = rsiChart.addLineSeries({
-        color: '#00bcd4',
-        lineWidth: 1.5,
-        title: 'EMA 9',
+        color: '#00bcd4', lineWidth: 1.5, title: 'EMA 9',
         priceFormat: { type: 'custom', formatter: v => v.toFixed(1) },
     });
-
     wmaLine = rsiChart.addLineSeries({
-        color: '#ff9800',
-        lineWidth: 1.5,
-        title: 'WMA 45',
+        color: '#ff9800', lineWidth: 1.5, title: 'WMA 45',
         priceFormat: { type: 'custom', formatter: v => v.toFixed(1) },
     });
 
-    // ── Sync time scales ─────────────────────────────────────────
+    // ── Sync: price → RSI via simple logical range mirror ────────
+    // Both charts now have the same number of bars (after RSI padding in
+    // renderData), so logical index N in price chart == logical index N in RSI.
+    // No offset needed. Just mirror the logical range 1:1.
     chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
         if (range) rsiChart.timeScale().setVisibleLogicalRange(range);
     });
-    rsiChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
-        if (range) chart.timeScale().setVisibleLogicalRange(range);
-    });
 
-    // ── Resize handling ──────────────────────────────────────────
+    // ── Resize: keep right-scale widths equal so x-axes stay pixel-aligned ──
+    const syncScaleWidth = () => {
+        // Read the actual rendered width of the price chart's right scale and
+        // force the RSI chart's right scale to the same minimum width.
+        // This ensures both chart drawing areas (total width minus scale) are equal.
+        const w = chart.priceScale('right').width();
+        if (w > 0) rsiChart.priceScale('right').applyOptions({ minimumWidth: w });
+    };
+
     const ro = new ResizeObserver(() => {
         chart.applyOptions({ width: priceEl.clientWidth, height: priceEl.clientHeight });
         rsiChart.applyOptions({ width: rsiEl.clientWidth, height: rsiEl.clientHeight });
+        syncScaleWidth();
+        // Re-sync range after resize
+        const range = chart.timeScale().getVisibleLogicalRange();
+        if (range) rsiChart.timeScale().setVisibleLogicalRange(range);
     });
     ro.observe(priceEl);
     ro.observe(rsiEl);
 
     // ── Events ───────────────────────────────────────────────────
     document.getElementById('run-btn').addEventListener('click', runAnalysis);
-    console.log('[dashboard] init complete');
+    console.log('[dashboard] v9 init complete');
 }
 
 // -- Actions --
@@ -130,12 +143,11 @@ function renderData(data) {
     candleSeries.setData(candles);
 
     // 2. Volume
-    const volumes = data.candles.map(c => ({
+    volumeSeries.setData(data.candles.map(c => ({
         time: toTimestamp(c.time),
         value: c.volume,
-        color: c.close >= c.open ? 'rgba(14, 203, 129, 0.3)' : 'rgba(246, 70, 93, 0.3)',
-    }));
-    volumeSeries.setData(volumes);
+        color: c.close >= c.open ? 'rgba(14,203,129,0.3)' : 'rgba(246,70,93,0.3)',
+    })));
 
     // 3. Trade markers
     if (data.trade_log && data.trade_log.length) {
@@ -159,19 +171,51 @@ function renderData(data) {
         candleSeries.setMarkers(markers);
     }
 
-    // 4. RSI pane
+    // 4. RSI pane – pad warmup bars with the first valid value so the RSI
+    //    chart ends up with the same number of bars as the price chart.
+    //    This makes bar widths identical → perfect left+right edge alignment.
     if (data.rsi_data && data.rsi_data.length) {
-        rsiSeries.setData(data.rsi_data.map(d => ({ time: toTimestamp(d.time), value: d.rsi })));
-        emaLine.setData(data.rsi_data.map(d => ({ time: toTimestamp(d.time), value: d.ema9 })));
-        wmaLine.setData(data.rsi_data.map(d => ({ time: toTimestamp(d.time), value: d.wma45 })));
+        // Build a lookup: timestamp → {rsi, ema9, wma45}
+        const rsiLookup = new Map(
+            data.rsi_data.map(d => [toTimestamp(d.time), d])
+        );
+        const first = data.rsi_data[0]; // first valid RSI point
+
+        // Build padded arrays matching every candle timestamp
+        const rsiPoints = [], emaPoints = [], wmaPoints = [];
+        for (const c of candles) {
+            const d = rsiLookup.get(c.time) || first; // warmup → first valid value
+            rsiPoints.push({ time: c.time, value: d.rsi });
+            emaPoints.push({ time: c.time, value: d.ema9 });
+            wmaPoints.push({ time: c.time, value: d.wma45 });
+        }
+
+        rsiSeries.setData(rsiPoints);
+        emaLine.setData(emaPoints);
+        wmaLine.setData(wmaPoints);
+
+        const warmupCount = candles.length - data.rsi_data.length;
+        console.log(`[dashboard] RSI padded: ${warmupCount} warmup bars → both charts have ${candles.length} bars`);
     }
 
     // 5. Table + Metrics
     updateTable(data.trade_log || []);
     updateMetrics(data.metrics);
 
+    // Fit price chart then mirror range to RSI
     chart.timeScale().fitContent();
-    rsiChart.timeScale().fitContent();
+    requestAnimationFrame(() => {
+        // 1. Sync right price-scale width so both chart drawing areas are equal.
+        //    Price labels (e.g. "69000.00") are wider than RSI labels ("43.9"),
+        //    so without this the RSI chart's bar area is wider → misalignment.
+        const w = chart.priceScale('right').width();
+        if (w > 0) rsiChart.priceScale('right').applyOptions({ minimumWidth: w });
+
+        // 2. Mirror time range (both charts now have identical bar counts AND
+        //    identical drawing widths → perfect pixel alignment).
+        const range = chart.timeScale().getVisibleLogicalRange();
+        if (range) rsiChart.timeScale().setVisibleLogicalRange(range);
+    });
 }
 
 function updateTable(trades) {
