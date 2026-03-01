@@ -57,7 +57,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--start", required=True)
     p.add_argument("--end", default=None)
     p.add_argument("--facts-version", default="v1")
-    p.add_argument("--strategy", default="sr_trend_v1")
+    p.add_argument("--strategy", default="rsi_inertia")
     p.add_argument("--top", type=int, default=20, help="Show top N results (default: 20)")
     p.add_argument("--save", action="store_true", help="Save all runs to backtest_runs")
     p.add_argument("--json", action="store_true", dest="json_mode")

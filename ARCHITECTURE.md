@@ -1,64 +1,76 @@
 # Trade-Agent Architecture
 
-This document describes the overall logic and data flow of the `trade-agent` system.
-
-## System Architecture Diagram
+## System Diagram
 
 ```mermaid
 graph TD
-    subgraph "1. DATA INGEST"
-        Binance["Binance API"] -- "Klines/Candlesticks" --> Sync["sync-klines script"]
-        Sync -- "Save to Storage" --> DuckDB[("DuckDB (trade.duckdb)")]
-    end
-
-    subgraph "2. MARKET ANALYSIS"
-        DuckDB --> Analyze["analyze-market script"]
-        
-        subgraph "Analysis Modules"
-            Analyze --> Trend["trend.py (EMA/SMA/Strength)"]
-            Analyze --> SR["sr.py (S/R, Hayden RSI, Structure)"]
-            Trend --> Payload["payload.py (Merge MTF)"]
-            SR --> Payload
-        end
-        
-        Payload -- "Persist Market Facts (v1, v2...)" --> DuckDB
-    end
-
-    subgraph "3. DECISION MAKING (Planning & LLM)"
-        DuckDB --> Latest["get-latest-facts"]
-        Latest -- "JSON Payload" --> Plan["plan-trade script"]
-        Plan -- "Context + Rules" --> LLM["LLM (DeepSeek/Claude)"]
-        LLM -- "Reasoning + Signals" --> Strategy["Trade Plan (Plan v1)"]
-    end
-
-    subgraph "4. VALIDATION & OPTIMIZATION"
-        Strategy --> Backtest["backtest-facts"]
-        Backtest -- "Performance Metrics" --> Reports["Reports (Experiments)"]
-        Reports --> Optimization["run-experiments / walk-forward"]
-        Optimization -- "Refine Params" --> Trend
-    end
-
-    %% Styles
-    style DuckDB fill:#f9f,stroke:#333,stroke-width:2px
-    style LLM fill:#69f,stroke:#333,stroke-width:2px
-    style Strategy fill:#0f0,stroke:#333,stroke-width:2px
+    Binance["Binance API"] --> Sync["sync-klines"]
+    Sync --> DuckDB[("DuckDB<br/>candles")]
+    
+    DuckDB --> Analyze["analyze-market"]
+    Analyze --> Trend["trend.py<br/>EMA + ATR"]
+    Analyze --> SR["sr.py<br/>Pivots + Hayden RSI"]
+    Trend --> Payload["payload.py"]
+    SR --> Payload
+    Payload --> DuckDB
+    
+    DuckDB --> Backtest["backtest-facts"]
+    Backtest --> RSI["RSI Inertia<br/>Bidirectional<br/>Long + Short"]
+    RSI --> Metrics["Metrics<br/>Return, DD, Sharpe"]
+    
+    DuckDB --> OptExp["run-experiments"]
+    OptExp --> Results["Grid-search<br/>Results"]
+    
+    DuckDB --> WalkFwd["walk-forward"]
+    WalkFwd --> Stability["Rolling Windows<br/>Stability Report"]
+    
+    DuckDB --> Dashboard["dashboard"]
+    Dashboard --> Web["Web UI<br/>TradingView Charts"]
 ```
 
-## Component Breakdown
+## Pipeline
 
-### 1. Data Ingest
-- **`sync-klines`**: Downloads OHLCV data from Binance and stores it in DuckDB.
+| Stage | Component | Purpose |
+|-------|-----------|---------|
+| Ingest | `sync-klines` | Download OHLCV candles from Binance → DuckDB |
+| Analysis | `trend.py` | EMA crossover, slope, ATR volatility |
+| | `sr.py` | Structural pivots (LL/HH), Hayden RSI zones |
+| | `payload.py` | Multi-TF merge, bias chain, key levels |
+| | `analyze-market` | Run analysis pipeline, persist facts |
+| Signal Gen | `facts_strategy.py` | RSI inertia (bidirectional: long + short) |
+| Backtest | `backtest-facts` | Vectorized simulation with fee modeling |
+| Validation | `run-experiments` | Grid-search params (zone_mult, fee_bps) |
+| | `walk-forward` | Rolling train/test windows for stability |
+| Visualization | `dashboard` | FastAPI + TradingView charts |
 
-### 2. Market Analysis
-- **`analyze-market`**: The main driver for market analysis.
-- **`trend.py`**: Computes trend direction and strength using technical indicators.
-- **`sr.py`**: Identifies Support and Resistance levels using specialized logic (Hayden RSI, Structural Swings, and Role Swaps).
-- **`payload.py`**: Aggregates multi-timeframe analysis into a structured JSON format.
+## Strategy: RSI Inertia (Bidirectional)
 
-### 3. Decision Making
-- **`plan-trade`**: Combines market facts with trading playbooks to generate a detailed trade plan via LLM.
-- **LLM**: Analyzes the provided data to suggest entries, stop losses, and take profits.
+**Signal Logic:**
+```
+Long:  idle → momentum (RSI > 80) → correction (RSI < EMA, WMA) → ENTRY (+1)
+Short: idle → momentum (RSI < 20) → correction (RSI > EMA, WMA) → ENTRY (-1)
+```
 
-### 4. Validation
-- **`backtest-facts`**: Runs historical simulations to verify the effectiveness of the generated plans.
-- **`run-experiments` & `walk-forward`**: Used for grid searching and testing the stability of strategy parameters across different market regimes.
+**State Machine:**
+- IDLE: waiting for momentum setup
+- MOMENTUM: RSI extreme (>80 long / <20 short)
+- CORRECTION: RSI pullback toward moving averages
+- HOLD: active position until divergence or threshold breach
+- Divergence: bearish (higher high, lower RSI) exits long; bullish exits short
+
+**Parameters:**
+- `rsi_period`: 14
+- `ema_period`: 9
+- `wma_period`: 45
+- `rsi_momentum_long`: 80
+- `rsi_momentum_short`: 20
+- `rsi_sideway_low`: 40
+- `rsi_sideway_high`: 60
+- `div_lookback`: 10 bars
+
+## Database Schema
+
+**Tables:**
+- `candles`: OHLCV data (symbol, interval, open_time)
+- `market_facts`: trend/SR analysis results (symbol, interval, version)
+- `backtest_runs`: historical simulation results (run_id, symbol, interval, metrics)

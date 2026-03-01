@@ -29,14 +29,7 @@ from trade_agent.backtest.facts_strategy import (
     _calc_wma,
 )
 
-# Map legacy strategy names to the unified mode parameter
-_MODE_MAP = {
-    "sr_trend_v1": "sr_trend",
-    "rsi_inertia_v1": "rsi_inertia",
-    "combined": "combined",
-    "sr_trend": "sr_trend",
-    "rsi_inertia": "rsi_inertia",
-}
+_MODE_MAP = {"rsi_inertia": "rsi_inertia"}
 
 log = logging.getLogger(__name__)
 
@@ -50,7 +43,7 @@ WEB_DIR = Path(__file__).parent.parent / "web"
 async def api_backtest(
     symbol: str = "BTCUSDT",
     interval: str = "1h",
-    strategy: str = "sr_trend_v1",
+    strategy: str = "rsi_inertia",
     start: str = "2025-01-01",
     end: str | None = None,
     fee_bps: float = 2.0,
@@ -72,7 +65,7 @@ async def api_backtest(
 
     # Run strategy (vectorized)
     facts = read_latest_facts(con, symbol, "ALL", version="v1")
-    mode = _MODE_MAP.get(strategy, "combined")
+    mode = _MODE_MAP.get(strategy, "rsi_inertia")
     signals = generate_signals(df, facts=facts, interval=interval, mode=mode)
     result = run_vectorized_backtest(df, signals, fee_bps=fee_bps)
     metrics = result["metrics"]

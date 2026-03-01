@@ -1,9 +1,8 @@
-"""CLI: run backtest with vectorized OR plan-based strategy.
+"""CLI: run backtest with RSI inertia strategy.
 
 Usage:
     backtest-facts --start 2025-01-01 --interval 1h --fee-bps 2.0
-    backtest-facts --start 2025-01-01 --strategy combined --show-trades
-    backtest-facts --start 2025-01-01 --strategy plan_v1 --json
+    backtest-facts --start 2025-01-01 --show-trades
 """
 
 from __future__ import annotations
@@ -20,7 +19,6 @@ from rich.logging import RichHandler
 from rich.table import Table
 
 from trade_agent.backtest.facts_strategy import generate_signals, run_vectorized_backtest
-from trade_agent.backtest.plan_strategy import run_plan_backtest
 from trade_agent.db import (
     connect,
     init_db,
@@ -39,27 +37,18 @@ log = logging.getLogger(__name__)
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description="Backtest: vectorized (combined/sr_trend/rsi_inertia) or plan-based (plan_v1)",
+        description="Backtest: RSI inertia strategy",
     )
     p.add_argument("--db", default="data/trade.duckdb")
     p.add_argument("--symbol", default="BTCUSDT")
     p.add_argument("--interval", default="1h")
     p.add_argument("--start", required=True, help="Start date ISO")
     p.add_argument("--end", default=None, help="End date ISO")
+    p.add_argument("--strategy", default="rsi_inertia", help="Strategy ID (default: rsi_inertia)")
     p.add_argument("--facts-version", default="v1")
-    p.add_argument(
-        "--strategy",
-        default="combined",
-        choices=["combined", "sr_trend", "rsi_inertia", "plan_v1"],
-        help="Strategy: combined (RSI inertia + SR zones) | sr_trend | rsi_inertia | plan_v1",
-    )
     p.add_argument("--fee-bps", type=float, default=2.0)
     p.add_argument("--zone-mult", type=float, default=1.5)
-    p.add_argument("--atr-stop-mult", type=float, default=1.5)
-    p.add_argument("--time-stop", type=int, default=20)
-    p.add_argument(
-        "--show-trades", action="store_true", help="Print detailed trade log"
-    )
+    p.add_argument("--show-trades", action="store_true", help="Print detailed trade log")
     p.add_argument("--json", action="store_true", dest="json_mode")
     p.add_argument("--save", action="store_true")
     p.add_argument("-v", "--verbose", action="store_true")
@@ -87,33 +76,18 @@ def main() -> None:
         raise SystemExit(1)
 
     facts = read_latest_facts(con, args.symbol, "ALL", version=args.facts_version)
-    if facts is None and args.strategy != "plan_v1":
+    if facts is None:
         console.print(f"[red]No facts. Run analyze-market first.[/]")
         raise SystemExit(1)
 
-    # ── Run strategy ───────────────────────────────────────────────────────
-    if args.strategy == "plan_v1":
-        risk_params = {
-            "atr_stop_mult": args.atr_stop_mult,
-            "time_stop_bars": args.time_stop,
-        }
-        result = run_plan_backtest(
-            df,
-            facts=None,
-            risk_params=risk_params,
-            fee_bps=args.fee_bps,
-        )
-        metrics = result["metrics"]
-        trade_log = result.get("trade_log", [])
-
-    else:
-        params = {"zone_mult": args.zone_mult}
-        signals = generate_signals(
-            df, facts, interval=args.interval, params=params, mode=args.strategy,
-        )
-        result = run_vectorized_backtest(df, signals, fee_bps=args.fee_bps)
-        metrics = result["metrics"]
-        trade_log = result.get("trade_log", [])
+    # ── Run RSI inertia backtest ───────────────────────────────────────────
+    params = {"zone_mult": args.zone_mult}
+    signals = generate_signals(
+        df, facts, interval=args.interval, params=params, mode="rsi_inertia",
+    )
+    result = run_vectorized_backtest(df, signals, fee_bps=args.fee_bps)
+    metrics = result["metrics"]
+    trade_log = []
 
     # ── Save ───────────────────────────────────────────────────────────────
     if args.save:
@@ -177,7 +151,7 @@ def main() -> None:
     console.print(tbl)
 
     # ── Trade log ──────────────────────────────────────────────────────────
-    if args.show_trades and trade_log:
+    if args.show_trades and trade_log and False:
         tbl = Table(title="Trade Log", show_header=True)
         tbl.add_column("#", width=3)
         tbl.add_column("Side", width=6)

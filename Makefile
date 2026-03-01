@@ -1,4 +1,4 @@
-.PHONY: test lint format install sync validate
+.PHONY: install test lint format sync validate check
 
 install:
 	pip install -e ".[dev]"

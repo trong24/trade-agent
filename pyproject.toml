@@ -26,7 +26,6 @@ dev = [
 ]
 
 [project.scripts]
-trade-agent      = "trade_agent.cli:main"
 sync-klines      = "trade_agent.scripts.sync_klines:main"
 analyze-market   = "trade_agent.scripts.analyze_market:main"
 backtest-facts   = "trade_agent.scripts.backtest_facts:main"

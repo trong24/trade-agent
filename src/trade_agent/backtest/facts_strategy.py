@@ -1,13 +1,6 @@
-"""Unified backtest strategy: SR-Trend + RSI Inertia.
+"""Vectorized backtest strategy: RSI Inertia.
 
-Merges sr_trend_v1 and rsi_inertia_v1 into a single module.
-
-Modes (via generate_signals(..., mode=...)):
-  sr_trend     : bias + S/R zone proximity
-  rsi_inertia  : bias + RSI state-machine (momentum → correction → entry)
-  combined     : RSI inertia timing filtered by S/R zone proximity (default)
-
-Shared runner: run_vectorized_backtest()
+Implements oscillator state machine (momentum → correction → entry).
 """
 
 from __future__ import annotations
@@ -239,44 +232,6 @@ def _short_signals(
 
 
 # ---------------------------------------------------------------------------
-# SR-trend signal generator
-# ---------------------------------------------------------------------------
-
-
-def _sr_trend_signals(
-    df: pd.DataFrame,
-    facts: dict | None,
-    interval: str,
-    p: dict,
-) -> pd.Series:
-    """Bias + S/R zone proximity signals."""
-    bias = _get_bias(facts, interval)
-    support_zones = _get_zones(facts, "support")
-    resistance_zones = _get_zones(facts, "resistance")
-
-    signals = pd.Series(0, index=df.index, dtype=int)
-
-    if bias == "long":
-        near_support = df["close"].apply(
-            lambda c: _price_near_zone(c, support_zones, p["zone_mult"])
-        )
-        near_resist = df["close"].apply(
-            lambda c: _price_near_zone(c, resistance_zones, p["zone_mult"])
-        )
-        signals[near_support & ~near_resist] = 1
-    elif bias == "short":
-        near_resist = df["close"].apply(
-            lambda c: _price_near_zone(c, resistance_zones, p["zone_mult"])
-        )
-        near_support = df["close"].apply(
-            lambda c: _price_near_zone(c, support_zones, p["zone_mult"])
-        )
-        signals[near_resist & ~near_support] = -1
-
-    return signals
-
-
-# ---------------------------------------------------------------------------
 # RSI-inertia signal generator
 # ---------------------------------------------------------------------------
 
@@ -287,8 +242,7 @@ def _rsi_inertia_signals(
     interval: str,
     p: dict,
 ) -> pd.Series:
-    """Bias + RSI state-machine signals."""
-    bias = _get_bias(facts, interval)
+    """Bidirectional RSI state-machine signals - generates both LONG and SHORT."""
     close = df["close"]
 
     rsi = _calc_rsi(close, p["rsi_period"])
@@ -296,77 +250,13 @@ def _rsi_inertia_signals(
     rsi_wma = _calc_wma(rsi, p["wma_period"])
     div = _detect_divergence(close, rsi, p["div_lookback"])
 
-    if bias == "long":
-        return _long_signals(rsi, rsi_ema, rsi_wma, div, p)
-    elif bias == "short":
-        return _short_signals(rsi, rsi_ema, rsi_wma, div, p)
-    return pd.Series(0, index=df.index, dtype=int)
-
-
-# ---------------------------------------------------------------------------
-# Combined signal generator
-# ---------------------------------------------------------------------------
-
-
-def _combined_signals(
-    df: pd.DataFrame,
-    facts: dict | None,
-    interval: str,
-    p: dict,
-) -> pd.Series:
-    """RSI inertia timing filtered by S/R zone proximity.
-
-    Uses RSI state machine for entry/exit timing.  When S/R zones are
-    available, entries are only allowed near a confirming zone (support
-    for long, resistance for short).  Exits remain purely RSI-driven.
-
-    If no zones exist, falls back to pure RSI inertia.
-    """
-    rsi_sig = _rsi_inertia_signals(df, facts, interval, p)
-
-    support_zones = _get_zones(facts, "support")
-    resistance_zones = _get_zones(facts, "resistance")
-
-    # No zones available → pure RSI inertia
-    if not support_zones and not resistance_zones:
-        return rsi_sig
-
-    bias = _get_bias(facts, interval)
-    signals = rsi_sig.copy()
-
-    if bias == "long" and support_zones:
-        # Only allow NEW long entries near support
-        near_support = df["close"].apply(
-            lambda c: _price_near_zone(c, support_zones, p["zone_mult"])
-        )
-        # Detect entry bars: transition from 0 → 1
-        entries = (rsi_sig == 1) & (rsi_sig.shift(1).fillna(0) != 1)
-        # Block entries that aren't near support
-        blocked = entries & ~near_support
-        # For each blocked entry, zero out the entire hold run that follows
-        for idx in signals.index[blocked]:
-            loc = signals.index.get_loc(idx)
-            for j in range(loc, len(signals)):
-                if signals.iloc[j] == 1:
-                    signals.iloc[j] = 0
-                elif j > loc:
-                    break
-
-    elif bias == "short" and resistance_zones:
-        near_resist = df["close"].apply(
-            lambda c: _price_near_zone(c, resistance_zones, p["zone_mult"])
-        )
-        entries = (rsi_sig == -1) & (rsi_sig.shift(1).fillna(0) != -1)
-        blocked = entries & ~near_resist
-        for idx in signals.index[blocked]:
-            loc = signals.index.get_loc(idx)
-            for j in range(loc, len(signals)):
-                if signals.iloc[j] == -1:
-                    signals.iloc[j] = 0
-                elif j > loc:
-                    break
-
-    return signals
+    # Generate both long and short signals independently
+    long_signals = _long_signals(rsi, rsi_ema, rsi_wma, div, p)
+    short_signals = _short_signals(rsi, rsi_ema, rsi_wma, div, p)
+    
+    # Combine: short signals override long signals (short = -1 takes priority)
+    combined = long_signals.astype(int) + short_signals.astype(int)
+    return combined.astype(int)
 
 
 # ---------------------------------------------------------------------------
@@ -390,31 +280,24 @@ DEFAULT_PARAMS: dict = {
 
 def generate_signals(
     df: pd.DataFrame,
-    facts: dict | None,
+    facts: dict | None = None,
     interval: str = "1h",
     params: dict | None = None,
-    mode: str = "combined",
+    mode: str = "rsi_inertia",
 ) -> pd.Series:
-    """Generate position signals (-1, 0, 1) per bar.
+    """Generate position signals (-1, 0, 1) per bar using RSI inertia.
 
     Args:
         df:       UTC-indexed OHLCV DataFrame.
         facts:    dict from market_facts (interval='ALL').
         interval: candle interval being backtested.
         params:   parameter overrides.
-        mode:     'sr_trend' | 'rsi_inertia' | 'combined' (default).
 
     Returns:
         pd.Series of int signals aligned to df.index, shifted 1 bar.
     """
     p = {**DEFAULT_PARAMS, **(params or {})}
-
-    if mode == "sr_trend":
-        signals = _sr_trend_signals(df, facts, interval, p)
-    elif mode == "rsi_inertia":
-        signals = _rsi_inertia_signals(df, facts, interval, p)
-    else:
-        signals = _combined_signals(df, facts, interval, p)
+    signals = _rsi_inertia_signals(df, facts, interval, p)
 
     # Shift 1 bar to avoid lookahead
     return signals.shift(1).fillna(0).astype(int)
@@ -439,7 +322,10 @@ def run_vectorized_backtest(
     total_return = float(cumulative.iloc[-1] - 1) * 100
 
     roll_max = cumulative.cummax()
-    drawdown = (cumulative - roll_max) / roll_max
+    # Guard against division by zero if roll_max contains zeros
+    drawdown = pd.Series(0.0, index=roll_max.index)
+    non_zero_mask = roll_max > 0
+    drawdown[non_zero_mask] = (cumulative[non_zero_mask] - roll_max[non_zero_mask]) / roll_max[non_zero_mask]
     max_dd = float(drawdown.min()) * 100
 
     sharpe = 0.0
@@ -461,7 +347,8 @@ def run_vectorized_backtest(
                 exit_price = float(df_reset["close"].iloc[i])
                 entry_price = current_trade["entry_price"]
                 side_mult = 1 if current_trade["side"] == "long" else -1
-                raw_pnl = (exit_price - entry_price) / entry_price * side_mult
+                # Guard against division by zero if entry_price is 0
+                raw_pnl = ((exit_price - entry_price) / entry_price * side_mult) if entry_price != 0 else 0.0
                 net_pnl = raw_pnl - (fee_rate * 2)
                 current_trade["exit"] = df_reset["open_time"].iloc[i].isoformat()
                 current_trade["exit_price"] = exit_price
