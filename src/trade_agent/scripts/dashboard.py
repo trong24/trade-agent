@@ -22,8 +22,21 @@ except ImportError:
     raise SystemExit(1)
 
 from trade_agent.db import connect, init_db, read_candles, read_latest_facts
-from trade_agent.backtest.facts_strategy import generate_signals, run_vectorized_backtest
-from trade_agent.analysis.sr import _calc_rsi, _calc_wma
+from trade_agent.backtest.facts_strategy import (
+    generate_signals,
+    run_vectorized_backtest,
+    _calc_rsi,
+    _calc_wma,
+)
+
+# Map legacy strategy names to the unified mode parameter
+_MODE_MAP = {
+    "sr_trend_v1": "sr_trend",
+    "rsi_inertia_v1": "rsi_inertia",
+    "combined": "combined",
+    "sr_trend": "sr_trend",
+    "rsi_inertia": "rsi_inertia",
+}
 
 log = logging.getLogger(__name__)
 
@@ -59,7 +72,8 @@ async def api_backtest(
 
     # Run strategy (vectorized)
     facts = read_latest_facts(con, symbol, "ALL", version="v1")
-    signals = generate_signals(df, facts=facts, interval=interval)
+    mode = _MODE_MAP.get(strategy, "combined")
+    signals = generate_signals(df, facts=facts, interval=interval, mode=mode)
     result = run_vectorized_backtest(df, signals, fee_bps=fee_bps)
     metrics = result["metrics"]
     trade_log = result.get("trade_log", [])

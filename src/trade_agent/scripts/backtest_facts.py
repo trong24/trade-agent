@@ -2,7 +2,7 @@
 
 Usage:
     backtest-facts --start 2025-01-01 --interval 1h --fee-bps 2.0
-    backtest-facts --start 2025-01-01 --strategy plan_v1 --show-trades
+    backtest-facts --start 2025-01-01 --strategy combined --show-trades
     backtest-facts --start 2025-01-01 --strategy plan_v1 --json
 """
 
@@ -39,7 +39,7 @@ log = logging.getLogger(__name__)
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description="Backtest: vectorized (sr_trend_v1) or plan-based (plan_v1)",
+        description="Backtest: vectorized (combined/sr_trend/rsi_inertia) or plan-based (plan_v1)",
     )
     p.add_argument("--db", default="data/trade.duckdb")
     p.add_argument("--symbol", default="BTCUSDT")
@@ -49,16 +49,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--facts-version", default="v1")
     p.add_argument(
         "--strategy",
-        default="sr_trend_v1",
-        choices=["sr_trend_v1", "plan_v1"],
-        help="Strategy: sr_trend_v1 (vectorized) | plan_v1 (plan rules)",
+        default="combined",
+        choices=["combined", "sr_trend", "rsi_inertia", "plan_v1"],
+        help="Strategy: combined (RSI inertia + SR zones) | sr_trend | rsi_inertia | plan_v1",
     )
     p.add_argument("--fee-bps", type=float, default=2.0)
     p.add_argument("--zone-mult", type=float, default=1.5)
     p.add_argument("--atr-stop-mult", type=float, default=1.5)
     p.add_argument("--time-stop", type=int, default=20)
     p.add_argument(
-        "--show-trades", action="store_true", help="Print detailed trade log (plan_v1 only)"
+        "--show-trades", action="store_true", help="Print detailed trade log"
     )
     p.add_argument("--json", action="store_true", dest="json_mode")
     p.add_argument("--save", action="store_true")
@@ -97,8 +97,6 @@ def main() -> None:
             "atr_stop_mult": args.atr_stop_mult,
             "time_stop_bars": args.time_stop,
         }
-        # plan_v1: always recompute facts inline from candle data (no lookahead)
-        # External facts from DB are computed from "today" → future bias
         result = run_plan_backtest(
             df,
             facts=None,
@@ -110,9 +108,12 @@ def main() -> None:
 
     else:
         params = {"zone_mult": args.zone_mult}
-        signals = generate_signals(df, facts, interval=args.interval, params=params)
-        metrics = run_vectorized_backtest(df, signals, fee_bps=args.fee_bps)
-        trade_log = []
+        signals = generate_signals(
+            df, facts, interval=args.interval, params=params, mode=args.strategy,
+        )
+        result = run_vectorized_backtest(df, signals, fee_bps=args.fee_bps)
+        metrics = result["metrics"]
+        trade_log = result.get("trade_log", [])
 
     # ── Save ───────────────────────────────────────────────────────────────
     if args.save:
@@ -194,7 +195,7 @@ def main() -> None:
                 f"{t['exit_price']:,.0f}",
                 f"[{color}]{t['pnl_pct']:.2f}%[/]",
                 t["reason"],
-                str(t["bars"]),
+                str(t.get("bars", "-")),
             )
         console.print(tbl)
 
